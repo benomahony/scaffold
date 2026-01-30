@@ -118,16 +118,6 @@ def new(
 
 
 @app.command()
-def list_templates() -> None:
-    assert console is not None, "Console must be initialized"
-    assert len(list(ProjectType)) > 0, "Must have at least one project type"
-
-    console.print("[bold]Available project templates:[/bold]\n")
-    for template_type in ProjectType:
-        console.print(f"  [cyan]{template_type.value:8}[/cyan] - {template_type.description}")
-
-
-@app.command()
 def check(path: Path = typer.Option(Path.cwd(), help="Project path to check")) -> None:
     """Check project structure and configuration."""
     assert path is not None, "Path must not be None"
