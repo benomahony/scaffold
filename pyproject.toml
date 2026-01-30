@@ -30,6 +30,7 @@ dev = [
 
 [project.scripts]
 scaffold = "scaffold.cli:app"
+sc = "scaffold.cli:app"
 
 [build-system]
 requires = ["hatchling"]
