@@ -1,0 +1,21 @@
+def example_function(name: str) -> str:
+    """Example function that greets someone.
+
+    Args:
+        name: Name to greet
+
+    Returns:
+        Greeting message
+
+    Example:
+        ```python
+        from {{ package_name }}.core import example_function
+
+        result = example_function("World")
+        assert result == "Hello, World!"
+        ```
+    """
+    assert name is not None, "Name must not be None"
+    assert isinstance(name, str), "Name must be a string"
+
+    return f"Hello, {name}!"

@@ -9,20 +9,10 @@ authors = [
 ]
 license = {text = "{{ license }}"}
 
-{% if project_type == "package" %}
-dependencies = []
-{% elif project_type == "cli" %}
 dependencies = [
     "typer>=0.12.0",
     "rich>=13.0.0",
 ]
-{% elif project_type == "webapp" %}
-dependencies = [
-    "fastapi>=0.110.0",
-    "uvicorn[standard]>=0.27.0",
-    "jinja2>=3.1.0",
-]
-{% endif %}
 
 [project.optional-dependencies]
 dev = [
@@ -34,13 +24,11 @@ dev = [
     "vulture>=2.11",
     "bandit>=1.7.0",
     "deptry>=0.12.0",
-{% if project_type == "cli" %}    "cliqa>=0.1.0",
-{% endif %}]
+    "cliqa>=0.1.0",
+]
 
-{% if project_type == "cli" %}
 [project.scripts]
 {{ package_name }} = "{{ package_name }}.cli:app"
-{% endif %}
 
 [build-system]
 requires = ["hatchling"]
@@ -71,5 +59,5 @@ typeCheckingMode = "standard"
 extend_exclude = ["tests"]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["pytest", "pytest-examples", "ruff", "basedpyright", "pre-commit", "vulture", "bandit", "deptry"{% if project_type == "cli" %}, "cliqa"{% endif %}]
+DEP002 = ["pytest", "pytest-examples", "ruff", "basedpyright", "pre-commit", "vulture", "bandit", "deptry", "cliqa"]
 DEP003 = ["{{ package_name }}"]

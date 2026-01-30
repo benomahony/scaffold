@@ -4,16 +4,12 @@ from pydantic import BaseModel, field_validator
 
 
 class ProjectType(str, Enum):
-    PACKAGE = "package"
-    CLI = "cli"
-    WEBAPP = "webapp"
+    PYTHON = "python"
 
     @property
     def description(self) -> str:
         descriptions = {
-            ProjectType.PACKAGE: "Python library package",
-            ProjectType.CLI: "Command-line application with Typer",
-            ProjectType.WEBAPP: "Web application with FastAPI + HTMX",
+            ProjectType.PYTHON: "Python project (CLI + library + docs + tests)",
         }
         assert self in descriptions, "Project type must have a description"
         return descriptions[self]

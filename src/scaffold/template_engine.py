@@ -25,34 +25,22 @@ class TemplateEngine:
 
     def get_template_files(self, project_type: ProjectType) -> list[tuple[str, str]]:
         assert project_type is not None, "Project type must not be None"
+        assert project_type == ProjectType.PYTHON, "Only PYTHON type supported"
 
-        base_templates = [
+        templates = [
             ("base/pyproject.toml.j2", "pyproject.toml"),
             ("base/.pre-commit-config.yaml.j2", ".pre-commit-config.yaml"),
             ("base/.gitignore.j2", ".gitignore"),
             ("base/.python-version.j2", ".python-version"),
             ("base/README.md.j2", "README.md"),
             ("base/__init__.py.j2", "src/__package_name__/__init__.py"),
+            ("python/cli.py.j2", "src/__package_name__/cli.py"),
+            ("python/core.py.j2", "src/__package_name__/core.py"),
+            ("python/test_cli.py.j2", "tests/test_cli.py"),
+            ("python/test_core.py.j2", "tests/test_core.py"),
+            ("python/docs_index.md.j2", "docs/index.md"),
         ]
 
-        type_templates: dict[ProjectType, list[tuple[str, str]]] = {
-            ProjectType.PACKAGE: [
-                ("package/docs_index.md.j2", "docs/index.md"),
-            ],
-            ProjectType.CLI: [
-                ("cli/cli.py.j2", "src/__package_name__/cli.py"),
-                ("cli/core.py.j2", "src/__package_name__/core.py"),
-                ("cli/test_cli.py.j2", "tests/test_cli.py"),
-            ],
-            ProjectType.WEBAPP: [
-                ("webapp/main.py.j2", "src/__package_name__/main.py"),
-                ("webapp/routes.py.j2", "src/__package_name__/routes.py"),
-                ("webapp/base.html.j2", "src/__package_name__/templates/base.html"),
-                ("webapp/test_main.py.j2", "tests/test_main.py"),
-            ],
-        }
-
-        templates = base_templates + type_templates[project_type]
         assert len(templates) > 0, "Must have at least one template"
         return templates
 

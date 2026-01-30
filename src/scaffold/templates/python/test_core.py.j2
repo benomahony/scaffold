@@ -1,0 +1,14 @@
+from {{ package_name }}.core import example_function
+
+
+def test_example_function():
+    result = example_function("World")
+    assert result == "Hello, World!"
+
+
+def test_example_function_empty_fails():
+    try:
+        example_function("")
+        assert False, "Should have raised AssertionError"
+    except AssertionError:
+        pass

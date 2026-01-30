@@ -80,7 +80,6 @@ repos:
         files: ^src/{{ package_name }}/
         exclude: ^tests/
         pass_filenames: false
-      {% if project_type == "cli" %}
       - id: cliqa
         name: cliqa
         entry: uv run cliqa analyze {{ package_name }}
@@ -88,7 +87,6 @@ repos:
         files: ^(pyproject\.toml|src/.*\.py)$
         pass_filenames: false
         require_serial: true
-      {% endif %}
       - id: deptry
         name: deptry
         entry: uv run deptry . --extend-exclude "\.venv|tests"

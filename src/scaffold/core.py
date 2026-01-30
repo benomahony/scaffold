@@ -11,6 +11,27 @@ def _validate_project_path(project_path: Path) -> None:
     assert project_path.is_dir(), "Project path must be a directory"
 
 
+def preview_project(config: ProjectConfig, output_path: Path) -> list[str]:
+    assert config is not None, "Config must not be None"
+    assert output_path.is_absolute(), "Output path must be absolute"
+
+    engine = TemplateEngine()
+    templates = engine.get_template_files(config.type)
+    empty_files = engine.get_empty_files()
+
+    all_files = []
+
+    for _, output_file in templates:
+        file_path = output_file.replace("__package_name__", config.package_name)
+        all_files.append(file_path)
+
+    for empty_file in empty_files:
+        file_path = empty_file.replace("__package_name__", config.package_name)
+        all_files.append(file_path)
+
+    return sorted(all_files)
+
+
 def create_project(config: ProjectConfig, output_path: Path) -> None:
     assert config is not None, "Config must not be None"
     assert output_path.is_absolute(), "Output path must be absolute"

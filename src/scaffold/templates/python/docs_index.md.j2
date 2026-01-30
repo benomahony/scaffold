@@ -1,0 +1,39 @@
+# {{ project_name }}
+
+{{ description }}
+
+## Installation
+
+```bash
+pip install {{ project_name }}
+```
+
+## Usage
+
+### As a library
+
+```python
+from {{ package_name }}.core import example_function
+
+result = example_function("World")
+print(result)  # Hello, World!
+```
+
+### As a CLI
+
+```bash
+{{ package_name }} hello World
+```
+
+## Development
+
+```bash
+# Install dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Run pre-commit hooks
+uv run pre-commit run --all-files
+```

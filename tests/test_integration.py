@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 
 
-def test_scaffold_cli_project(tmp_path: Path) -> None:
+def test_scaffold_python_project(tmp_path: Path) -> None:
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
-    project_name = "test-integration-cli"
+    project_name = "test-integration-python-full"
     original_cwd = Path.cwd()
 
     try:
@@ -23,12 +23,10 @@ def test_scaffold_cli_project(tmp_path: Path) -> None:
                 "scaffold",
                 "new",
                 project_name,
-                "--type",
-                "cli",
                 "--author",
                 "Test Author",
                 "--description",
-                "Integration test CLI",
+                "Integration test Python project",
             ],
             input="n\n",
             text=True,
@@ -76,11 +74,11 @@ def test_scaffold_cli_project(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_scaffold_package_project(tmp_path: Path) -> None:
+def test_scaffold_python_project_with_docs(tmp_path: Path) -> None:
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
-    project_name = "test-integration-package"
+    project_name = "test-integration-python"
     original_cwd = Path.cwd()
 
     try:
@@ -93,12 +91,10 @@ def test_scaffold_package_project(tmp_path: Path) -> None:
                 "scaffold",
                 "new",
                 project_name,
-                "--type",
-                "package",
                 "--author",
                 "Test Author",
                 "--description",
-                "Integration test package",
+                "Integration test Python project",
             ],
             input="n\n",
             text=True,
