@@ -1,0 +1,24 @@
+import typer
+from rich.console import Console
+
+from {{ package_name }}.core import example_function
+
+app = typer.Typer(
+    help="{{ description }}",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+console = Console()
+
+
+@app.command()
+def hello(name: str = typer.Argument(..., help="Name to greet")) -> None:
+    assert name is not None, "Name must not be None"
+    assert len(name) > 0, "Name must not be empty"
+
+    result = example_function(name)
+    console.print(result)
+
+
+if __name__ == "__main__":
+    app()

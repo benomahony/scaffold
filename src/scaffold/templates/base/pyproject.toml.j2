@@ -1,0 +1,75 @@
+[project]
+name = "{{ project_name }}"
+version = "0.1.0"
+description = "{{ description }}"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+authors = [
+    {name = "{{ author }}"{% if email %}, email = "{{ email }}"{% endif %}}
+]
+license = {text = "{{ license }}"}
+
+{% if project_type == "package" %}
+dependencies = []
+{% elif project_type == "cli" %}
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+]
+{% elif project_type == "webapp" %}
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "jinja2>=3.1.0",
+]
+{% endif %}
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-examples>=0.0.10",
+    "ruff>=0.3.0",
+    "basedpyright>=1.10.0",
+    "pre-commit>=3.6.0",
+    "vulture>=2.11",
+    "bandit>=1.7.0",
+    "deptry>=0.12.0",
+{% if project_type == "cli" %}    "cliqa>=0.1.0",
+{% endif %}]
+
+{% if project_type == "cli" %}
+[project.scripts]
+{{ package_name }} = "{{ package_name }}.cli:app"
+{% endif %}
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py{{ python_version.replace('.', '') }}"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101"]
+
+[tool.basedpyright]
+include = ["src/{{ package_name }}"]
+typeCheckingMode = "standard"
+
+[tool.deptry]
+extend_exclude = ["tests"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["pytest", "pytest-examples", "ruff", "basedpyright", "pre-commit", "vulture", "bandit", "deptry"{% if project_type == "cli" %}, "cliqa"{% endif %}]
+DEP003 = ["{{ package_name }}"]

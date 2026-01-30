@@ -1,0 +1,10 @@
+from fastapi import APIRouter
+
+router = APIRouter()
+
+
+@router.get("/api/health")
+async def health():
+    assert router is not None, "Router must be initialized"
+
+    return {"status": "healthy"}

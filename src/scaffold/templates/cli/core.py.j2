@@ -1,0 +1,5 @@
+def example_function(name: str) -> str:
+    assert name is not None, "Name must not be None"
+    assert isinstance(name, str), "Name must be a string"
+
+    return f"Hello, {name}!"
