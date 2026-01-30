@@ -129,3 +129,99 @@ def test_scaffold_python_project_with_docs(tmp_path: Path) -> None:
 
     finally:
         os.chdir(original_cwd)
+
+
+def test_scaffold_check_command(tmp_path: Path) -> None:
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    project_name = "test-check-command"
+    original_cwd = Path.cwd()
+
+    try:
+        os.chdir(tmp_path)
+
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "scaffold",
+                "new",
+                project_name,
+                "--author",
+                "Test Author",
+                "--description",
+                "Test check command",
+            ],
+            input="n\n",
+            text=True,
+            capture_output=True,
+        )
+
+        assert result.returncode == 0, f"Scaffold command must succeed. Error:\n{result.stderr}"
+
+        project_path = tmp_path / project_name
+
+        check_result = subprocess.run(
+            ["uv", "run", "scaffold", "check", "--path", str(project_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        assert check_result.returncode == 0, "Check command must succeed"
+        assert "Project structure looks good" in check_result.stdout
+
+    finally:
+        os.chdir(original_cwd)
+
+
+def test_scaffold_upgrade_command(tmp_path: Path) -> None:
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    project_name = "test-upgrade-command"
+    original_cwd = Path.cwd()
+
+    try:
+        os.chdir(tmp_path)
+
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "scaffold",
+                "new",
+                project_name,
+                "--author",
+                "Test Author",
+                "--description",
+                "Test upgrade command",
+            ],
+            input="n\n",
+            text=True,
+            capture_output=True,
+        )
+
+        assert result.returncode == 0, f"Scaffold command must succeed. Error:\n{result.stderr}"
+
+        project_path = tmp_path / project_name
+
+        precommit_file = project_path / ".pre-commit-config.yaml"
+        precommit_file.write_text("# old version\n")
+
+        upgrade_result = subprocess.run(
+            ["uv", "run", "scaffold", "upgrade", "--path", str(project_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        assert upgrade_result.returncode == 0, "Upgrade command must succeed"
+        assert "Upgrade complete" in upgrade_result.stdout
+        assert ".pre-commit-config.yaml" in upgrade_result.stdout
+
+        content = precommit_file.read_text()
+        assert "default_language_version" in content
+        assert "# old version" not in content
+
+    finally:
+        os.chdir(original_cwd)

@@ -102,3 +102,91 @@ def setup_project_environment(project_path: Path) -> None:
         check=True,
         capture_output=True,
     )
+
+
+def check_project(project_path: Path) -> list[str]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    issues = []
+
+    pyproject_file = project_path / "pyproject.toml"
+    if not pyproject_file.exists():
+        issues.append("Missing pyproject.toml")
+        return issues
+
+    precommit_file = project_path / ".pre-commit-config.yaml"
+    if not precommit_file.exists():
+        issues.append("Missing .pre-commit-config.yaml")
+
+    src_dir = project_path / "src"
+    if not src_dir.exists():
+        issues.append("Missing src/ directory")
+
+    tests_dir = project_path / "tests"
+    if not tests_dir.exists():
+        issues.append("Missing tests/ directory")
+
+    git_dir = project_path / ".git"
+    if not git_dir.exists():
+        issues.append("Not a git repository (run: git init)")
+
+    precommit_hook = project_path / ".git" / "hooks" / "pre-commit"
+    if git_dir.exists() and not precommit_hook.exists():
+        issues.append("Pre-commit hooks not installed (run: uv run pre-commit install)")
+
+    return issues
+
+
+def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    import tomllib
+
+    pyproject_file = project_path / "pyproject.toml"
+    if not pyproject_file.exists():
+        raise ValueError("Not a Python project (missing pyproject.toml)")
+
+    with open(pyproject_file, "rb") as f:
+        pyproject_data = tomllib.load(f)
+
+    project_name = pyproject_data.get("project", {}).get("name")
+    if not project_name:
+        raise ValueError("pyproject.toml missing project.name")
+
+    package_name = project_name.replace("-", "_")
+    author = pyproject_data.get("project", {}).get("authors", [{}])[0].get("name", "Unknown")
+    description = pyproject_data.get("project", {}).get("description", "")
+    python_version = pyproject_data.get("project", {}).get("requires-python", ">=3.12")
+    python_version = python_version.replace(">=", "").strip()
+
+    engine = TemplateEngine()
+    context = {
+        "project_name": project_name,
+        "package_name": package_name,
+        "author": author,
+        "email": None,
+        "description": description,
+        "python_version": python_version,
+        "license": "MIT",
+        "year": datetime.now().year,
+        "project_type": "python",
+    }
+
+    files_to_upgrade = [
+        ("base/.pre-commit-config.yaml.j2", ".pre-commit-config.yaml"),
+    ]
+
+    updated_files = []
+
+    for template_path, output_file in files_to_upgrade:
+        output_path = project_path / output_file
+
+        if not dry_run:
+            content = engine.render_template(template_path, context)
+            output_path.write_text(content)
+
+        updated_files.append(output_file)
+
+    return updated_files

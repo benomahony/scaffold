@@ -127,5 +127,69 @@ def list_templates() -> None:
         console.print(f"  [cyan]{template_type.value:8}[/cyan] - {template_type.description}")
 
 
+@app.command()
+def check(path: Path = typer.Option(Path.cwd(), help="Project path to check")) -> None:
+    """Check project structure and configuration."""
+    assert path is not None, "Path must not be None"
+    assert path.exists(), f"Path {path} does not exist"
+
+    from scaffold.core import check_project
+
+    console.print(f"[bold]Checking project at:[/bold] {path}\n")
+
+    issues = check_project(path)
+
+    if not issues:
+        console.print("[green]✓ Project structure looks good![/green]")
+        return
+
+    console.print(f"[yellow]Found {len(issues)} issue(s):[/yellow]\n")
+    for issue in issues:
+        console.print(f"  [red]✗[/red] {issue}")
+
+    console.print("\n[dim]Run 'scaffold upgrade' to fix infrastructure files[/dim]")
+
+
+@app.command()
+def upgrade(
+    path: Path = typer.Option(Path.cwd(), help="Project path to upgrade"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
+) -> None:
+    """Upgrade project infrastructure files to latest standards."""
+    assert path is not None, "Path must not be None"
+    assert path.exists(), f"Path {path} does not exist"
+
+    from scaffold.core import upgrade_project
+
+    console.print(f"[bold]Upgrading project at:[/bold] {path}\n")
+
+    if dry_run:
+        console.print("[yellow]Dry run mode - no files will be modified[/yellow]\n")
+
+    try:
+        changes = upgrade_project(path, dry_run=dry_run)
+
+        if not changes:
+            console.print("[green]✓ Project is already up to date![/green]")
+            return
+
+        if dry_run:
+            console.print(f"[yellow]Would update {len(changes)} file(s):[/yellow]\n")
+        else:
+            console.print(f"[green]Updated {len(changes)} file(s):[/green]\n")
+
+        for file in changes:
+            console.print(f"  {'[yellow]~[/yellow]' if dry_run else '[green]✓[/green]'} {file}")
+
+        if dry_run:
+            console.print("\n[dim]Run without --dry-run to apply changes[/dim]")
+        else:
+            console.print("\n[green]Upgrade complete![/green]")
+
+    except Exception as e:
+        console.print(f"[red]✗ Upgrade failed: {e}[/red]")
+        raise
+
+
 if __name__ == "__main__":
     app()
