@@ -25,53 +25,6 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=1000]
 
-  - repo: local
-    hooks:
-      - id: ruff-format
-        name: ruff-format
-        entry: uv run ruff format
-        language: system
-        types_or: [python, pyi]
-        require_serial: true
-      - id: ruff
-        name: ruff
-        entry: uv run ruff check --fix --exit-non-zero-on-fix
-        language: system
-        types_or: [python, pyi]
-        require_serial: true
-
-  - repo: local
-    hooks:
-      - id: basedpyright
-        name: basedpyright
-        entry: uv run basedpyright
-        language: system
-        types: [python]
-        files: ^src/{{ package_name }}/
-        pass_filenames: true
-        require_serial: true
-
-  - repo: local
-    hooks:
-      - id: vulture
-        name: vulture
-        entry: uv run vulture src/{{ package_name }}/ --min-confidence 80
-        language: system
-        types: [python]
-        files: ^src/{{ package_name }}/
-        pass_filenames: false
-        require_serial: true
-
-  - repo: local
-    hooks:
-      - id: bandit
-        name: bandit
-        entry: uv run bandit -c pyproject.toml -r src/{{ package_name }}/
-        language: system
-        files: ^src/{{ package_name }}/
-        exclude: ^tests/
-        pass_filenames: false
-
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.47.0
     hooks:
@@ -92,6 +45,41 @@ repos:
 
   - repo: local
     hooks:
+      - id: ruff-format
+        name: ruff-format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: basedpyright
+        name: basedpyright
+        entry: uv run basedpyright
+        language: system
+        types: [python]
+        files: ^src/{{ package_name }}/
+        pass_filenames: true
+        require_serial: true
+      - id: vulture
+        name: vulture
+        entry: uv run vulture src/{{ package_name }}/ --min-confidence 80
+        language: system
+        types: [python]
+        files: ^src/{{ package_name }}/
+        pass_filenames: false
+        require_serial: true
+      - id: bandit
+        name: bandit
+        entry: uv run bandit -c pyproject.toml -r src/{{ package_name }}/
+        language: system
+        files: ^src/{{ package_name }}/
+        exclude: ^tests/
+        pass_filenames: false
       {% if project_type == "cli" %}
       - id: cliqa
         name: cliqa

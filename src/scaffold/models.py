@@ -8,6 +8,16 @@ class ProjectType(str, Enum):
     CLI = "cli"
     WEBAPP = "webapp"
 
+    @property
+    def description(self) -> str:
+        descriptions = {
+            ProjectType.PACKAGE: "Python library package",
+            ProjectType.CLI: "Command-line application with Typer",
+            ProjectType.WEBAPP: "Web application with FastAPI + HTMX",
+        }
+        assert self in descriptions, "Project type must have a description"
+        return descriptions[self]
+
 
 class ProjectConfig(BaseModel):
     name: str

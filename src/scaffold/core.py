@@ -6,6 +6,11 @@ from scaffold.models import ProjectConfig
 from scaffold.template_engine import TemplateEngine
 
 
+def _validate_project_path(project_path: Path) -> None:
+    assert project_path.exists(), "Project path must exist"
+    assert project_path.is_dir(), "Project path must be a directory"
+
+
 def create_project(config: ProjectConfig, output_path: Path) -> None:
     assert config is not None, "Config must not be None"
     assert output_path.is_absolute(), "Output path must be absolute"
@@ -47,25 +52,27 @@ def render_and_write_templates(
         output_file_path = output_path / output_file.replace("__package_name__", config.package_name)
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if template_path.endswith(".j2"):
-            content = engine.render_template(template_path, context)
-            output_file_path.write_text(content)
-        else:
-            template_source = engine.env.loader.get_source(engine.env, template_path)
-            output_file_path.write_text(template_source[0])
+        content = engine.render_template(template_path, context)
+        output_file_path.write_text(content)
+
+    empty_files = engine.get_empty_files()
+    assert len(empty_files) > 0, "Must have empty files defined"
+
+    for empty_file in empty_files:
+        empty_file_path = output_path / empty_file.replace("__package_name__", config.package_name)
+        empty_file_path.parent.mkdir(parents=True, exist_ok=True)
+        empty_file_path.touch()
 
 
 def initialize_git(project_path: Path) -> None:
-    assert project_path.exists(), "Project path must exist"
-    assert project_path.is_dir(), "Project path must be a directory"
+    _validate_project_path(project_path)
 
     subprocess.run(["git", "init"], cwd=project_path, check=True, capture_output=True)
     subprocess.run(["git", "add", "."], cwd=project_path, check=True, capture_output=True)
 
 
 def setup_project_environment(project_path: Path) -> None:
-    assert project_path.exists(), "Project path must exist"
-    assert project_path.is_dir(), "Project path must be a directory"
+    _validate_project_path(project_path)
 
     subprocess.run(["uv", "sync"], cwd=project_path, check=True, capture_output=True)
     subprocess.run(

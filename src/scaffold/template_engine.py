@@ -25,7 +25,6 @@ class TemplateEngine:
 
     def get_template_files(self, project_type: ProjectType) -> list[tuple[str, str]]:
         assert project_type is not None, "Project type must not be None"
-        assert isinstance(project_type, ProjectType), "Must be ProjectType enum"
 
         base_templates = [
             ("base/pyproject.toml.j2", "pyproject.toml"),
@@ -33,30 +32,22 @@ class TemplateEngine:
             ("base/.gitignore.j2", ".gitignore"),
             ("base/.python-version.j2", ".python-version"),
             ("base/README.md.j2", "README.md"),
+            ("base/__init__.py.j2", "src/__package_name__/__init__.py"),
         ]
 
         type_templates: dict[ProjectType, list[tuple[str, str]]] = {
             ProjectType.PACKAGE: [
-                ("package/__init__.py.j2", "src/__package_name__/__init__.py"),
-                ("package/py.typed", "src/__package_name__/py.typed"),
-                ("package/tests_init.py", "tests/__init__.py"),
                 ("package/docs_index.md.j2", "docs/index.md"),
             ],
             ProjectType.CLI: [
-                ("cli/__init__.py.j2", "src/__package_name__/__init__.py"),
                 ("cli/cli.py.j2", "src/__package_name__/cli.py"),
                 ("cli/core.py.j2", "src/__package_name__/core.py"),
-                ("cli/py.typed", "src/__package_name__/py.typed"),
-                ("cli/tests_init.py", "tests/__init__.py"),
                 ("cli/test_cli.py.j2", "tests/test_cli.py"),
             ],
             ProjectType.WEBAPP: [
-                ("webapp/__init__.py.j2", "src/__package_name__/__init__.py"),
                 ("webapp/main.py.j2", "src/__package_name__/main.py"),
                 ("webapp/routes.py.j2", "src/__package_name__/routes.py"),
-                ("webapp/py.typed", "src/__package_name__/py.typed"),
                 ("webapp/base.html.j2", "src/__package_name__/templates/base.html"),
-                ("webapp/tests_init.py", "tests/__init__.py"),
                 ("webapp/test_main.py.j2", "tests/test_main.py"),
             ],
         }
@@ -64,3 +55,11 @@ class TemplateEngine:
         templates = base_templates + type_templates[project_type]
         assert len(templates) > 0, "Must have at least one template"
         return templates
+
+    def get_empty_files(self) -> list[str]:
+        assert self.env is not None, "Environment must be initialized"
+
+        return [
+            "src/__package_name__/py.typed",
+            "tests/__init__.py",
+        ]

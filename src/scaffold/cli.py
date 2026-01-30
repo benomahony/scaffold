@@ -82,12 +82,7 @@ def list_templates() -> None:
 
     console.print("[bold]Available project templates:[/bold]\n")
     for template_type in ProjectType:
-        descriptions = {
-            ProjectType.PACKAGE: "Python library package",
-            ProjectType.CLI: "Command-line application with Typer",
-            ProjectType.WEBAPP: "Web application with FastAPI + HTMX",
-        }
-        console.print(f"  [cyan]{template_type.value:8}[/cyan] - {descriptions[template_type]}")
+        console.print(f"  [cyan]{template_type.value:8}[/cyan] - {template_type.description}")
 
 
 if __name__ == "__main__":
