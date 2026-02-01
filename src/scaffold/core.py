@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -335,6 +336,42 @@ def _get_latest_file_mtime(repo_path: Path) -> datetime:
     return datetime.fromtimestamp(latest_mtime) if latest_mtime > 0 else datetime.now()
 
 
+def _get_clean_env() -> dict[str, str]:
+    """Get clean environment without VIRTUAL_ENV to avoid uv conflicts."""
+    assert os.environ is not None, "os.environ must be available"
+
+    env = os.environ.copy()
+    assert isinstance(env, dict), "Environment must be a dictionary"
+    env.pop("VIRTUAL_ENV", None)
+    env.pop("CONDA_PREFIX", None)
+    return env
+
+
+def _execute_command(cmd: list[str], repo_path: Path, timeout: int) -> tuple[int, float, str, str]:
+    """Execute command and return exit code, duration, stdout, stderr."""
+    assert cmd is not None and len(cmd) > 0, "Command must not be empty"
+    assert repo_path is not None, "Repo path must not be None"
+
+    env = _get_clean_env()
+    start_time = time.time()
+
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+            env=env,
+        )
+        duration = time.time() - start_time
+        return result.returncode, duration, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        duration = time.time() - start_time
+        return -2, duration, "", f"Command timed out after {timeout} seconds"
+
+
 def _run_command_on_repo(
     repo_path: Path,
     command: str,
@@ -353,7 +390,6 @@ def _run_command_on_repo(
         if cached:
             latest_mtime = _get_latest_file_mtime(repo_path)
             if cached.timestamp > latest_mtime:
-                # Cache is still valid, return cached result
                 return cached
 
     git_commit = _get_git_commit(repo_path)
@@ -362,25 +398,7 @@ def _run_command_on_repo(
     if command == "prek":
         cmd.extend(["run", "--all-files"])
 
-    start_time = time.time()
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
-        duration = time.time() - start_time
-        exit_code = result.returncode
-        stdout = result.stdout
-        stderr = result.stderr
-    except subprocess.TimeoutExpired:
-        duration = time.time() - start_time
-        exit_code = -2
-        stdout = ""
-        stderr = f"Command timed out after {timeout} seconds"
+    exit_code, duration, stdout, stderr = _execute_command(cmd, repo_path, timeout)
 
     return CommandResult(
         repo_path=str(repo_path),
