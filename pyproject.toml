@@ -19,6 +19,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-examples>=0.0.10",
+    "pytest-xdist>=3.5.0",
     "ruff>=0.3.0",
     "basedpyright>=1.10.0",
     "pre-commit>=3.6.0",
@@ -48,11 +49,24 @@ quote-style = "double"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = [
+    "unit: Fast unit tests (no subprocess, can run in parallel with -n auto)",
+    "integration: Slow integration tests (subprocess, run sequentially)",
+]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
-skips = ["B101"]
+skips = ["B101", "B404", "B603", "B606", "B607", "B701"]
 
 [tool.basedpyright]
 include = ["src/scaffold"]
 typeCheckingMode = "standard"
+
+[tool.deptry]
+extend_exclude = ["tests"]
+
+[tool.deptry.per_rule_ignores]
+DEP001 = ["scaffold"]
+DEP002 = ["pytest", "pytest-examples", "pytest-xdist", "ruff", "basedpyright", "pre-commit", "vulture", "bandit", "deptry", "cliqa"]
+DEP003 = ["scaffold"]
