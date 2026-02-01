@@ -309,3 +309,26 @@ def test_get_latest_by_repo_filters_by_command(tmp_path: Path) -> None:
     pytest_latest = storage.get_latest_by_repo("pytest")
     assert len(pytest_latest) == 1, "Must return one result"
     assert pytest_latest[str(tmp_path / "repo1")].command == "pytest", "Must filter by command"
+
+
+def test_command_result_with_timeout(tmp_path: Path) -> None:
+    """Test that timeout exit code (-2) is stored correctly."""
+    storage = ResultStorage(tmp_path)
+
+    timeout_result = CommandResult(
+        repo_path=str(tmp_path / "timeout-repo"),
+        repo_name="timeout-repo",
+        command="pytest",
+        timestamp=datetime.now(),
+        exit_code=-2,
+        duration_seconds=600.0,
+        stdout="",
+        stderr="Command timed out after 600 seconds",
+    )
+
+    storage.save_result(timeout_result)
+
+    loaded = storage.load_results()
+    assert len(loaded) == 1, "Must load timeout result"
+    assert loaded[0].exit_code == -2, "Timeout exit code must be -2"
+    assert "timed out" in loaded[0].stderr.lower(), "Must have timeout message"
