@@ -12,6 +12,7 @@ class ProjectType(str, Enum):
             ProjectType.PYTHON: "Python project (CLI + library + docs + tests)",
         }
         assert self in descriptions, "Project type must have a description"
+        assert isinstance(descriptions[self], str), "Description must be a string"
         return descriptions[self]
 
 
@@ -45,4 +46,7 @@ class ProjectConfig(BaseModel):
 
     @property
     def package_name(self) -> str:
-        return self.name.replace("-", "_")
+        assert self.name is not None, "Name must not be None"
+        package = self.name.replace("-", "_")
+        assert package.isidentifier(), "Package name must be valid Python identifier"
+        return package
