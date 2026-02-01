@@ -1,0 +1,20 @@
+# scaffold
+
+> Scaffold new Python projects with opinionated defaults
+
+## Documentation
+
+- [Installation](docs/index.md#installation): Install scaffold using pip or uv
+- [Usage](docs/index.md#usage): Learn how to use scaffold as a library or CLI tool
+- [Development](docs/index.md#development): Set up a development environment and run tests
+
+## Project Information
+
+- **Source Code**: https://github.com/Ben O'Mahony/scaffold
+- **PyPI Package**: https://pypi.org/project/scaffold
+- **Documentation**: https://Ben O'Mahony.github.io/scaffold
+
+## AI Integration
+
+- **MCP Server**: Model Context Protocol server available at `src/scaffold/mcp_server.py` for AI-powered documentation access
+- **Agent Skill**: Claude Code skill available in `.skills/scaffold/SKILL.md` for enhanced project interaction

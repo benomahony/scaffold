@@ -1,0 +1,12 @@
+[project]
+site_name = "scaffold"
+site_url = "https://Ben O'Mahony.github.io/scaffold"
+site_description = "Scaffold new Python projects with opinionated defaults"
+site_author = "Ben O'Mahony"
+copyright = "&copy; 2026 Ben O'Mahony"
+docs_dir = "docs"
+site_dir = "site"
+use_directory_urls = true
+
+[project.theme]
+variant = "modern"
