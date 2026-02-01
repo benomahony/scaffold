@@ -1,0 +1,46 @@
+---
+name: {{ project_name }}
+description: Help users work with {{ project_name }}. Use when the user asks about {{ project_name }} features, usage, or wants to implement functionality using this project.
+---
+
+# {{ project_name }} Skill
+
+This skill helps you work with {{ project_name }}.
+
+## When to Use This Skill
+
+Use this skill when:
+
+- User asks about {{ project_name }} features or capabilities
+- User wants to use {{ project_name }} in their code
+- User needs help with {{ project_name }} API or CLI
+- User wants examples of {{ project_name }} usage
+
+## Project Information
+
+- **Description**: {{ description }}
+- **Author**: {{ author }}
+- **Documentation**: See docs/index.md for full documentation
+- **Source**: src/{{ package_name }}/
+
+## Quick Reference
+
+### CLI Usage
+
+```bash
+{{ package_name }} --help
+```
+
+### Library Usage
+
+```python
+from {{ package_name }}.core import example_function
+
+result = example_function("World")
+```
+
+## Resources
+
+- Check docs/index.md for comprehensive documentation
+- Check llms.txt for LLM-friendly documentation summary
+- Check src/{{ package_name }}/ for implementation details

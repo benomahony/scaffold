@@ -1,8 +1,11 @@
+import pytest
 from typer.testing import CliRunner
 
 from {{ package_name }}.cli import app
 
 runner = CliRunner()
+
+pytestmark = pytest.mark.unit
 
 
 def test_hello():

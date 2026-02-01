@@ -1,4 +1,8 @@
+import pytest
+
 from {{ package_name }}.core import example_function
+
+pytestmark = pytest.mark.unit
 
 
 def test_example_function():

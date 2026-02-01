@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from jinja2 import Environment, PackageLoader
 
 from scaffold.models import ProjectType
@@ -12,6 +10,7 @@ class TemplateEngine:
             autoescape=False,
             trim_blocks=True,
             lstrip_blocks=True,
+            keep_trailing_newline=True,
         )
         assert self.env is not None, "Jinja environment must be initialized"
         assert self.env.loader is not None, "Jinja loader must be configured"
@@ -33,12 +32,17 @@ class TemplateEngine:
             ("base/.gitignore.j2", ".gitignore"),
             ("base/.python-version.j2", ".python-version"),
             ("base/README.md.j2", "README.md"),
+            ("base/llms.txt.j2", "llms.txt"),
+            ("base/zensical.toml.j2", "zensical.toml"),
+            ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
             ("base/__init__.py.j2", "src/__package_name__/__init__.py"),
             ("python/cli.py.j2", "src/__package_name__/cli.py"),
             ("python/core.py.j2", "src/__package_name__/core.py"),
+            ("python/mcp_server.py.j2", "src/__package_name__/mcp_server.py"),
             ("python/test_cli.py.j2", "tests/test_cli.py"),
             ("python/test_core.py.j2", "tests/test_core.py"),
             ("python/docs_index.md.j2", "docs/index.md"),
+            ("python/SKILL.md.j2", ".skills/__package_name__/SKILL.md"),
         ]
 
         assert len(templates) > 0, "Must have at least one template"
@@ -47,7 +51,9 @@ class TemplateEngine:
     def get_empty_files(self) -> list[str]:
         assert self.env is not None, "Environment must be initialized"
 
-        return [
+        empty_files = [
             "src/__package_name__/py.typed",
             "tests/__init__.py",
         ]
+        assert len(empty_files) > 0, "Must have at least one empty file"
+        return empty_files

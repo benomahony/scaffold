@@ -2,6 +2,29 @@
 
 {{ description }}
 
+## Quick Start
+
+Create a new project with scaffold:
+
+```bash
+sc init {{ project_name }}
+```
+
+This will:
+
+1. Create the project structure
+2. Install dependencies with `uv sync`
+3. Install git hooks with `prek install`
+4. Run `pytest` to verify everything works
+5. Show "Ready to code!" when complete
+
+Then just:
+
+```bash
+cd {{ project_name }}
+source .venv/bin/activate
+```
+
 ## Installation
 
 ```bash
@@ -37,3 +60,32 @@ uv run pytest
 # Run pre-commit hooks
 uv run pre-commit run --all-files
 ```
+
+## AI Integration
+
+### MCP Server
+
+This project includes a Model Context Protocol (MCP) server for AI-powered documentation access.
+
+**Setup with Claude Code:**
+
+```bash
+# Install MCP dependencies
+uv sync --extra mcp
+
+# Add MCP server to Claude Code
+claude mcp add {{ package_name }} --transport stdio uv run --with mcp python src/{{ package_name }}/mcp_server.py
+```
+
+### Agent Skill
+
+A Claude Code Agent Skill is included in `.skills/{{ package_name }}/SKILL.md`.
+
+**Install the skill:**
+
+```bash
+# From project root
+claude skill add .skills/{{ package_name }}
+```
+
+The skill helps Claude understand and work with this project more effectively.
