@@ -307,7 +307,7 @@ def _get_git_commit(repo_path: Path) -> str | None:
     return None
 
 
-def _run_command_on_repo(repo_path: Path, command: str) -> CommandResult:
+def _run_command_on_repo(repo_path: Path, command: str, timeout: int = 600) -> CommandResult:
     assert repo_path is not None, "Repo path must not be None"
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
 
@@ -319,24 +319,34 @@ def _run_command_on_repo(repo_path: Path, command: str) -> CommandResult:
         cmd.extend(["run", "--all-files"])
 
     start_time = time.time()
-    result = subprocess.run(
-        cmd,
-        cwd=repo_path,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    duration = time.time() - start_time
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+        duration = time.time() - start_time
+        exit_code = result.returncode
+        stdout = result.stdout
+        stderr = result.stderr
+    except subprocess.TimeoutExpired:
+        duration = time.time() - start_time
+        exit_code = -2
+        stdout = ""
+        stderr = f"Command timed out after {timeout} seconds"
 
     return CommandResult(
         repo_path=str(repo_path),
         repo_name=repo_name,
         command=command,
         timestamp=datetime.now(),
-        exit_code=result.returncode,
+        exit_code=exit_code,
         duration_seconds=duration,
-        stdout=result.stdout,
-        stderr=result.stderr,
+        stdout=stdout,
+        stderr=stderr,
         git_commit=git_commit,
     )
 
