@@ -351,6 +351,7 @@ def upgrade(
 @app.command()
 def test(
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
+    force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
     path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
@@ -390,19 +391,33 @@ def test(
         task = progress.add_task("Running pytest...", total=len(projects))
 
         results = []
+        cached_count = 0
         with ProcessPoolExecutor() as executor:
             futures = {
-                executor.submit(_run_command_on_repo, project, "pytest"): project
+                executor.submit(
+                    _run_command_on_repo, project, "pytest", 600, storage, force
+                ): project
                 for project in projects
             }
 
             for future in as_completed(futures):
                 try:
                     result = future.result()
-                    storage.save_result(result)
+
+                    # Check if this was a cached result
+                    cached_results = storage.get_latest_by_repo("pytest")
+                    is_cached = str(result.repo_path) in cached_results and not force
+
+                    if not is_cached:
+                        storage.save_result(result)
+                    else:
+                        cached_count += 1
+
                     results.append(result)
                     status = "✓" if result.exit_code == 0 else "✗"
-                    progress.update(task, advance=1, description=f"Running pytest... {status}")
+                    cache_indicator = " (cached)" if is_cached else ""
+                    desc = f"Running pytest... {status}{cache_indicator}"
+                    progress.update(task, advance=1, description=desc)
                 except Exception as e:
                     project = futures[future]
                     console.print(f"[red]Error in {project.name}: {e}[/red]")
@@ -414,6 +429,8 @@ def test(
 
     console.print("\n[bold]Test Results:[/bold]")
     console.print(f"  Total tested: {total}")
+    if cached_count > 0:
+        console.print(f"  [dim]📦 Cached: {cached_count} (unchanged since last run)[/dim]")
     console.print(f"  [green]✓[/green] Passed: {passed}")
     if failed > 0:
         console.print(f"  [red]✗[/red] Failed: {failed}\n")
@@ -431,6 +448,7 @@ def test(
 @app.command()
 def prek(
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
+    force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
     path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
@@ -470,19 +488,33 @@ def prek(
         task = progress.add_task("Running prek...", total=len(projects))
 
         results = []
+        cached_count = 0
         with ProcessPoolExecutor() as executor:
             futures = {
-                executor.submit(_run_command_on_repo, project, "prek"): project
+                executor.submit(
+                    _run_command_on_repo, project, "prek", 600, storage, force
+                ): project
                 for project in projects
             }
 
             for future in as_completed(futures):
                 try:
                     result = future.result()
-                    storage.save_result(result)
+
+                    # Check if this was a cached result
+                    cached_results = storage.get_latest_by_repo("prek")
+                    is_cached = str(result.repo_path) in cached_results and not force
+
+                    if not is_cached:
+                        storage.save_result(result)
+                    else:
+                        cached_count += 1
+
                     results.append(result)
                     status = "✓" if result.exit_code == 0 else "✗"
-                    progress.update(task, advance=1, description=f"Running prek... {status}")
+                    cache_indicator = " (cached)" if is_cached else ""
+                    desc = f"Running prek... {status}{cache_indicator}"
+                    progress.update(task, advance=1, description=desc)
                 except Exception as e:
                     project = futures[future]
                     console.print(f"[red]Error in {project.name}: {e}[/red]")
@@ -494,6 +526,8 @@ def prek(
 
     console.print("\n[bold]Prek Results:[/bold]")
     console.print(f"  Total checked: {total}")
+    if cached_count > 0:
+        console.print(f"  [dim]📦 Cached: {cached_count} (unchanged since last run)[/dim]")
     console.print(f"  [green]✓[/green] Passed: {passed}")
     if failed > 0:
         console.print(f"  [red]✗[/red] Failed: {failed}\n")

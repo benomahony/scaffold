@@ -307,11 +307,55 @@ def _get_git_commit(repo_path: Path) -> str | None:
     return None
 
 
-def _run_command_on_repo(repo_path: Path, command: str, timeout: int = 600) -> CommandResult:
+def _get_latest_file_mtime(repo_path: Path) -> datetime:
+    assert repo_path is not None, "Repo path must not be None"
+    assert repo_path.exists(), "Repo path must exist"
+
+    latest_mtime = 0.0
+
+    for root, _dirs, files in repo_path.walk():
+        # Skip common directories that don't affect test results
+        skip_dirs = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules", ".tox"}
+        root_name = root.name
+        if root_name in skip_dirs or root_name.startswith("."):
+            continue
+
+        for file in files:
+            if file.endswith((".pyc", ".pyo")):
+                continue
+
+            file_path = root / file
+            try:
+                mtime = file_path.stat().st_mtime
+                if mtime > latest_mtime:
+                    latest_mtime = mtime
+            except (OSError, PermissionError):
+                continue
+
+    return datetime.fromtimestamp(latest_mtime) if latest_mtime > 0 else datetime.now()
+
+
+def _run_command_on_repo(
+    repo_path: Path,
+    command: str,
+    timeout: int = 600,
+    storage: ResultStorage | None = None,
+    force: bool = False,
+) -> CommandResult:
     assert repo_path is not None, "Repo path must not be None"
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
 
     repo_name = repo_path.name
+
+    # Check cache if not forcing re-run
+    if not force and storage:
+        cached = storage.get_latest_by_repo(command).get(str(repo_path))
+        if cached:
+            latest_mtime = _get_latest_file_mtime(repo_path)
+            if cached.timestamp > latest_mtime:
+                # Cache is still valid, return cached result
+                return cached
+
     git_commit = _get_git_commit(repo_path)
 
     cmd = ["uv", "run", command]
