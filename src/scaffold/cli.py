@@ -5,10 +5,9 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 
-from scaffold.core import create_project, preview_project, run_bulk_command
+from scaffold.core import create_project, preview_project
 from scaffold.models import ProjectConfig, ProjectType
 from scaffold.storage import ResultStorage
 
@@ -22,8 +21,10 @@ Examples:
   sc init my-project --dry-run          Preview before creating
   sc check                              Check project health
   sc upgrade                            Update infrastructure files
+  sc bulk dir                           List all Python projects
   sc bulk test                          Run pytest on all repos
   sc bulk prek                          Run prek on all repos
+  sc bulk status                        Show test results for current dir
 """,
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -357,11 +358,13 @@ def bulk_test(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Run pytest on all Python projects."""
+    """Run pytest on all Python projects in parallel."""
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from scaffold.core import find_python_projects
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    from scaffold.core import _run_command_on_repo, find_python_projects
 
     console.print(f"[bold]Running pytest on all projects in:[/bold] {path}\n")
     console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
@@ -373,7 +376,34 @@ def bulk_test(
         return
 
     storage = ResultStorage()
-    results = run_bulk_command(path, "pytest", max_depth=max_depth, storage=storage)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Running pytest...", total=len(projects))
+
+        results = []
+        with ProcessPoolExecutor() as executor:
+            futures = {
+                executor.submit(_run_command_on_repo, project, "pytest"): project
+                for project in projects
+            }
+
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    storage.save_result(result)
+                    results.append(result)
+                    status = "✓" if result.exit_code == 0 else "✗"
+                    progress.update(task, advance=1, description=f"Running pytest... {status}")
+                except Exception as e:
+                    project = futures[future]
+                    console.print(f"[red]Error in {project.name}: {e}[/red]")
+                    progress.advance(task)
 
     total = len(results)
     passed = sum(1 for r in results if r.exit_code == 0)
@@ -402,11 +432,13 @@ def bulk_prek(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Run prek on all Python projects."""
+    """Run prek on all Python projects in parallel."""
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from scaffold.core import find_python_projects
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    from scaffold.core import _run_command_on_repo, find_python_projects
 
     console.print(f"[bold]Running prek on all projects in:[/bold] {path}\n")
     console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
@@ -418,7 +450,34 @@ def bulk_prek(
         return
 
     storage = ResultStorage()
-    results = run_bulk_command(path, "prek", max_depth=max_depth, storage=storage)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Running prek...", total=len(projects))
+
+        results = []
+        with ProcessPoolExecutor() as executor:
+            futures = {
+                executor.submit(_run_command_on_repo, project, "prek"): project
+                for project in projects
+            }
+
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    storage.save_result(result)
+                    results.append(result)
+                    status = "✓" if result.exit_code == 0 else "✗"
+                    progress.update(task, advance=1, description=f"Running prek... {status}")
+                except Exception as e:
+                    project = futures[future]
+                    console.print(f"[red]Error in {project.name}: {e}[/red]")
+                    progress.advance(task)
 
     total = len(results)
     passed = sum(1 for r in results if r.exit_code == 0)
@@ -440,28 +499,89 @@ def bulk_prek(
     console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
 
 
-def _print_results_table(results: list) -> None:
+@bulk_app.command(name="dir")
+def bulk_dir(
+    path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
+    max_depth: int = typer.Option(
+        3, "--max-depth", help="Maximum directory depth for recursive search"
+    ),
+) -> None:
+    """List all Python projects found in directory tree."""
+    assert path is not None, "Path must not be None"
+    assert path.exists(), f"Path {path} does not exist"
+
+    from scaffold.core import find_python_projects
+
+    console.print(f"[bold]Finding Python projects in:[/bold] {path}")
+    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
+
+    projects = find_python_projects(path, max_depth)
+
+    if not projects:
+        console.print("[yellow]No Python projects found[/yellow]")
+        return
+
+    console.print(f"[bold]Found {len(projects)} project(s):[/bold]\n")
+
+    for project in projects:
+        relative = project.relative_to(path) if project.is_relative_to(path) else project
+        console.print(f"  • {relative}")
+
+    console.print("\n[dim]Run 'sc bulk test' or 'sc bulk prek' to execute commands[/dim]")
+
+
+def _print_results_by_repo(results: list) -> None:
     assert results is not None, "Results must not be None"
     assert len(results) > 0, "Results must not be empty"
 
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("Repository")
-    table.add_column("Command")
-    table.add_column("Status")
-    table.add_column("Duration (s)")
-    table.add_column("Timestamp")
+    from datetime import datetime, timedelta
 
+    now = datetime.now()
+
+    grouped = {}
     for result in results:
-        status = (
-            "[green]✓ PASS[/green]"
-            if result.exit_code == 0
-            else f"[red]✗ FAIL ({result.exit_code})[/red]"
-        )
-        duration = f"{result.duration_seconds:.2f}"
-        timestamp = result.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        table.add_row(result.repo_name, result.command, status, duration, timestamp)
+        repo = result.repo_name
+        if repo not in grouped:
+            grouped[repo] = {"pytest": None, "prek": None, "path": result.repo_path}
+        grouped[repo][result.command] = result
 
-    console.print(table)
+    for repo_name in sorted(grouped.keys()):
+        repo_data = grouped[repo_name]
+        pytest_result = repo_data.get("pytest")
+        prek_result = repo_data.get("prek")
+
+        pytest_status = ""
+        prek_status = ""
+        timestamp_str = ""
+
+        if pytest_result:
+            pytest_status = (
+                "[green]✓ PASS[/green]"
+                if pytest_result.exit_code == 0
+                else "[red]✗ FAIL[/red]"
+            )
+            age = now - pytest_result.timestamp
+            if age > timedelta(days=1):
+                timestamp_str = f"[dim]{age.days}d ago[/dim]"
+            elif age > timedelta(hours=1):
+                hours = int(age.total_seconds() / 3600)
+                timestamp_str = f"[dim]{hours}h ago[/dim]"
+            else:
+                minutes = int(age.total_seconds() / 60)
+                timestamp_str = f"[dim]{minutes}m ago[/dim]"
+
+        if prek_result:
+            prek_status = (
+                "[green]✓ PASS[/green]"
+                if prek_result.exit_code == 0
+                else "[red]✗ FAIL[/red]"
+            )
+
+        test_col = f"pytest: {pytest_status}" if pytest_result else ""
+        prek_col = f"prek: {prek_status}" if prek_result else ""
+        combined = f"{test_col}  {prek_col}".strip()
+
+        console.print(f"{repo_name:30} {combined:40} {timestamp_str}")
 
 
 def _print_detailed_results(results: list) -> None:
@@ -484,11 +604,14 @@ def _print_detailed_results(results: list) -> None:
 @bulk_app.command(name="status")
 def bulk_status(
     command: str | None = typer.Option(None, help="Filter by command (pytest or prek)"),
+    path: Path = typer.Option(Path.cwd(), help="Filter by repos in this directory"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed output"),
 ) -> None:
-    """Display stored bulk command results."""
+    """Display stored bulk command results for current directory."""
     assert command is None or command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
     assert isinstance(detailed, bool), "Detailed must be boolean"
+
+    from scaffold.core import find_python_projects
 
     storage = ResultStorage()
 
@@ -498,21 +621,26 @@ def bulk_status(
         )
         return
 
-    if command:
-        results = list(storage.get_latest_by_repo(command).values())
-    else:
-        results = storage.load_results()
+    projects = find_python_projects(path, max_depth=3)
+    project_paths = {str(p) for p in projects}
+
+    all_results = storage.load_results(command=command) if command else storage.load_results()
+
+    results = [r for r in all_results if r.repo_path in project_paths]
 
     if not results:
-        console.print("[yellow]No results found.[/yellow]")
+        console.print(
+            f"[yellow]No results found for projects in {path}[/yellow]\n"
+            f"[dim]Run 'sc bulk test' or 'sc bulk prek' in this directory[/dim]"
+        )
         return
 
-    console.print("[bold]Bulk Command Results[/bold]")
+    console.print(f"[bold]Bulk Command Results[/bold] - {path}")
     if command:
-        console.print(f"[dim]Command: {command}[/dim]")
+        console.print(f"[dim]Filtered by: {command}[/dim]")
     console.print(f"[dim]Total results: {len(results)}[/dim]\n")
 
-    _print_results_table(results)
+    _print_results_by_repo(results)
 
     if detailed:
         _print_detailed_results(results)
