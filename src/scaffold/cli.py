@@ -392,6 +392,10 @@ def test(
 
         results = []
         cached_count = 0
+
+        # Get cached results before execution to compare timestamps
+        cached_results_map = storage.get_latest_by_repo("pytest") if not force else {}
+
         with ProcessPoolExecutor() as executor:
             futures = {
                 executor.submit(
@@ -404,9 +408,9 @@ def test(
                 try:
                     result = future.result()
 
-                    # Check if this was a cached result
-                    cached_results = storage.get_latest_by_repo("pytest")
-                    is_cached = str(result.repo_path) in cached_results and not force
+                    # Check if result timestamp matches cached timestamp (means it was cached)
+                    cached = cached_results_map.get(str(result.repo_path))
+                    is_cached = cached and result.timestamp == cached.timestamp and not force
 
                     if not is_cached:
                         storage.save_result(result)
@@ -489,6 +493,10 @@ def prek(
 
         results = []
         cached_count = 0
+
+        # Get cached results before execution to compare timestamps
+        cached_results_map = storage.get_latest_by_repo("prek") if not force else {}
+
         with ProcessPoolExecutor() as executor:
             futures = {
                 executor.submit(
@@ -501,9 +509,9 @@ def prek(
                 try:
                     result = future.result()
 
-                    # Check if this was a cached result
-                    cached_results = storage.get_latest_by_repo("prek")
-                    is_cached = str(result.repo_path) in cached_results and not force
+                    # Check if result timestamp matches cached timestamp (means it was cached)
+                    cached = cached_results_map.get(str(result.repo_path))
+                    is_cached = cached and result.timestamp == cached.timestamp and not force
 
                     if not is_cached:
                         storage.save_result(result)
