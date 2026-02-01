@@ -21,18 +21,15 @@ Examples:
   sc init my-project --dry-run          Preview before creating
   sc check                              Check project health
   sc upgrade                            Update infrastructure files
-  sc bulk dir                           List all Python projects
-  sc bulk test                          Run pytest on all repos
-  sc bulk prek                          Run prek on all repos
-  sc bulk status                        Show test results for current dir
+  sc list                               List all Python projects
+  sc test -r                            Run pytest on all repos
+  sc prek -r                            Run prek on all repos
+  sc status                             Show test results for current dir
 """,
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
-
-bulk_app = typer.Typer(help="Bulk operations across multiple repositories")
-app.add_typer(bulk_app, name="bulk")
 
 
 def version_callback(value: bool) -> None:
@@ -351,20 +348,26 @@ def upgrade(
             raise
 
 
-@bulk_app.command(name="test")
-def bulk_test(
+@app.command()
+def test(
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
     path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Run pytest on all Python projects in parallel."""
+    """Run pytest on current project or all projects with -r."""
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
     from concurrent.futures import ProcessPoolExecutor, as_completed
 
     from scaffold.core import _run_command_on_repo, find_python_projects
+
+    if not recursive:
+        console.print("[bold]Running pytest on current project...[/bold]\n")
+        result = subprocess.run(["uv", "run", "pytest"], check=False)
+        raise typer.Exit(result.returncode)
 
     console.print(f"[bold]Running pytest on all projects in:[/bold] {path}\n")
     console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
@@ -425,20 +428,26 @@ def bulk_test(
     console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
 
 
-@bulk_app.command(name="prek")
-def bulk_prek(
+@app.command()
+def prek(
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
     path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Run prek on all Python projects in parallel."""
+    """Run prek on current project or all projects with -r."""
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
     from concurrent.futures import ProcessPoolExecutor, as_completed
 
     from scaffold.core import _run_command_on_repo, find_python_projects
+
+    if not recursive:
+        console.print("[bold]Running prek on current project...[/bold]\n")
+        result = subprocess.run(["uv", "run", "prek", "run", "--all-files"], check=False)
+        raise typer.Exit(result.returncode)
 
     console.print(f"[bold]Running prek on all projects in:[/bold] {path}\n")
     console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
@@ -499,14 +508,14 @@ def bulk_prek(
     console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
 
 
-@bulk_app.command(name="dir")
-def bulk_dir(
+@app.command(name="list")
+def list_projects(
     path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """List all Python projects found in directory tree."""
+    """List all Python projects in directory tree."""
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
@@ -527,7 +536,7 @@ def bulk_dir(
         relative = project.relative_to(path) if project.is_relative_to(path) else project
         console.print(f"  • {relative}")
 
-    console.print("\n[dim]Run 'sc bulk test' or 'sc bulk prek' to execute commands[/dim]")
+    console.print("\n[dim]Run 'sc test -r' or 'sc prek -r' to execute commands[/dim]")
 
 
 def _print_results_by_repo(results: list) -> None:
@@ -601,13 +610,13 @@ def _print_detailed_results(results: list) -> None:
         console.print()
 
 
-@bulk_app.command(name="status")
-def bulk_status(
+@app.command()
+def status(
     command: str | None = typer.Option(None, help="Filter by command (pytest or prek)"),
     path: Path = typer.Option(Path.cwd(), help="Filter by repos in this directory"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed output"),
 ) -> None:
-    """Display stored bulk command results for current directory."""
+    """Display test/prek results for projects in current directory."""
     assert command is None or command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
     assert isinstance(detailed, bool), "Detailed must be boolean"
 
@@ -617,7 +626,7 @@ def bulk_status(
 
     if not storage.status_file.exists():
         console.print(
-            "[yellow]No results found. Run 'sc bulk test' or 'sc bulk prek' first.[/yellow]"
+            "[yellow]No results found. Run 'sc test -r' or 'sc prek -r' first.[/yellow]"
         )
         return
 
@@ -631,7 +640,7 @@ def bulk_status(
     if not results:
         console.print(
             f"[yellow]No results found for projects in {path}[/yellow]\n"
-            f"[dim]Run 'sc bulk test' or 'sc bulk prek' in this directory[/dim]"
+            f"[dim]Run 'sc test -r' or 'sc prek -r' in this directory[/dim]"
         )
         return
 

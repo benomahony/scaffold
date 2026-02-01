@@ -566,7 +566,7 @@ def test_ai_integration_files(tmp_path: Path) -> None:
 
 
 def test_bulk_test_command(tmp_path: Path) -> None:
-    """Test bulk test command runs pytest on all projects."""
+    """Test test -r command runs pytest on all projects."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -586,7 +586,7 @@ def test_bulk_test_command(tmp_path: Path) -> None:
                     "--author",
                     "Test Author",
                     "--description",
-                    "Test bulk test",
+                    "Test test -r",
                 ],
                 input="n\n",
                 text=True,
@@ -595,7 +595,7 @@ def test_bulk_test_command(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "test", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -621,7 +621,7 @@ def test_bulk_test_command(tmp_path: Path) -> None:
 
 
 def test_bulk_prek_command(tmp_path: Path) -> None:
-    """Test bulk prek command runs prek on all projects."""
+    """Test prek -r command runs prek on all projects."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -641,7 +641,7 @@ def test_bulk_prek_command(tmp_path: Path) -> None:
                     "--author",
                     "Test Author",
                     "--description",
-                    "Test bulk prek",
+                    "Test prek -r",
                 ],
                 input="n\n",
                 text=True,
@@ -650,7 +650,7 @@ def test_bulk_prek_command(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "prek", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "prek", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -673,7 +673,7 @@ def test_bulk_prek_command(tmp_path: Path) -> None:
 
 
 def test_bulk_status_command(tmp_path: Path) -> None:
-    """Test bulk status command displays results."""
+    """Test status command displays results."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -701,14 +701,14 @@ def test_bulk_status_command(tmp_path: Path) -> None:
         )
 
         subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "test", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "status", "--command", "pytest"],
+            ["uv", "run", "scaffold", "status", "--command", "pytest"],
             capture_output=True,
             text=True,
         )
@@ -725,7 +725,7 @@ def test_bulk_status_command(tmp_path: Path) -> None:
 
 
 def test_bulk_status_detailed(tmp_path: Path) -> None:
-    """Test bulk status detailed output."""
+    """Test status detailed output."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -753,14 +753,14 @@ def test_bulk_status_detailed(tmp_path: Path) -> None:
         )
 
         subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "test", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "status", "--detailed"],
+            ["uv", "run", "scaffold", "status", "--detailed"],
             capture_output=True,
             text=True,
         )

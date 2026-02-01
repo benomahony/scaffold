@@ -10,7 +10,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_bulk_dir_command(tmp_path: Path) -> None:
-    """Test bulk dir command lists all projects."""
+    """Test list command lists all projects."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -39,9 +39,9 @@ def test_bulk_dir_command(tmp_path: Path) -> None:
                 check=True,
             )
 
-        # Run bulk dir
+        # Run list
         result = subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "dir", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "list", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -86,14 +86,14 @@ def test_bulk_status_grouped_by_repo(tmp_path: Path) -> None:
 
         # Run both commands
         subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "test", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
         )
 
         subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "prek", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "prek", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
@@ -101,7 +101,7 @@ def test_bulk_status_grouped_by_repo(tmp_path: Path) -> None:
 
         # Check status shows both results for one repo
         result = subprocess.run(
-            ["uv", "run", "scaffold", "bulk", "status", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
