@@ -499,9 +499,7 @@ def prek(
 
         with ProcessPoolExecutor() as executor:
             futures = {
-                executor.submit(
-                    _run_command_on_repo, project, "prek", 600, storage, force
-                ): project
+                executor.submit(_run_command_on_repo, project, "prek", 600, storage, force): project
                 for project in projects
             }
 
@@ -607,9 +605,7 @@ def _print_results_by_repo(results: list) -> None:
 
         if pytest_result:
             pytest_status = (
-                "[green]✓ PASS[/green]"
-                if pytest_result.exit_code == 0
-                else "[red]✗ FAIL[/red]"
+                "[green]✓ PASS[/green]" if pytest_result.exit_code == 0 else "[red]✗ FAIL[/red]"
             )
             age = now - pytest_result.timestamp
             if age > timedelta(days=1):
@@ -623,9 +619,7 @@ def _print_results_by_repo(results: list) -> None:
 
         if prek_result:
             prek_status = (
-                "[green]✓ PASS[/green]"
-                if prek_result.exit_code == 0
-                else "[red]✗ FAIL[/red]"
+                "[green]✓ PASS[/green]" if prek_result.exit_code == 0 else "[red]✗ FAIL[/red]"
             )
 
         test_col = f"pytest: {pytest_status}" if pytest_result else ""
@@ -667,9 +661,7 @@ def status(
     storage = ResultStorage()
 
     if not storage.status_file.exists():
-        console.print(
-            "[yellow]No results found. Run 'sc test -r' or 'sc prek -r' first.[/yellow]"
-        )
+        console.print("[yellow]No results found. Run 'sc test -r' or 'sc prek -r' first.[/yellow]")
         return
 
     projects = find_python_projects(path, max_depth=3)
