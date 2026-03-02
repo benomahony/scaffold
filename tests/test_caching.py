@@ -4,8 +4,6 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import pytest
-
 from scaffold.core import _get_latest_file_mtime, _run_command_on_repo
 from scaffold.storage import CommandResult, ResultStorage
 

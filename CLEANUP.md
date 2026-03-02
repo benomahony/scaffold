@@ -3,6 +3,7 @@
 ## Critical Issues - Current Status
 
 ### ✅ Completed Today
+
 - [x] **FIXED**: uv sync error - added `[tool.hatch.build.targets.wheel]` to pyproject.toml.j2
 - [x] **FIXED**: zensical version too high - changed from >=0.1.0 to >=0.0.10
 - [x] **FIXED**: MCP server type error - changed uri parameter to untyped with type ignore
@@ -14,6 +15,7 @@
   - Added --all-files flag to prek run commands
 
 ### ⚠️ Still Failing
+
 - [ ] **Tests failing with exit status 1** - prek hooks finding unfixable issues
   - All 9 integration tests fail on second `prek run -a` (check=True)
   - First run (check=False) fixes formatting but issues remain
@@ -21,6 +23,7 @@
   - Likely type errors in generated templates (MCP server, etc.)
 
 ### 🔍 Next Steps
+
 1. Manually create a test project and run `prek run -a` to see actual errors
 2. Fix template issues causing hook failures
 3. Re-run tests
@@ -35,7 +38,8 @@
 
 ## Git Status
 
-### Modified Files (need review/commit):
+### Modified Files (need review/commit)
+
 - [ ] `src/scaffold/cli.py` - Removed "uv sync" from Next steps
 - [ ] `src/scaffold/core.py` - Added upgrade features, pre-commit install
 - [ ] `src/scaffold/template_engine.py` - Added new template files
@@ -43,7 +47,8 @@
 - [ ] `src/scaffold/templates/python/docs_index.md.j2` - Added AI Integration section
 - [ ] `tests/test_integration.py` - Added AI integration test
 
-### New Files (need review/commit):
+### New Files (need review/commit)
+
 - [ ] `.github/workflows/ci.yml` - GitHub Actions workflow
 - [ ] `.pre-commit-config.yaml` - Pre-commit hooks config
 - [ ] `.skills/scaffold/SKILL.md` - Agent Skill for scaffold
@@ -98,12 +103,14 @@
 ## Pre-commit to Prek Migration
 
 Files updated:
+
 - [x] `src/scaffold/templates/base/pyproject.toml.j2` - Changed pre-commit to prek
 - [x] `src/scaffold/core.py` - Updated all pre-commit commands to prek
 - [x] `tests/test_integration.py` - Updated test commands to prek
 - [x] `.skills/scaffold/SKILL.md` - Updated documentation
 
 Still investigating:
+
 - [ ] Why `prek run` returns exit status 2
 - [ ] Need to check if prek needs different command structure
 - [ ] May need to run `prek install-hooks` before `prek run`

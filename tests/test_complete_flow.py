@@ -67,7 +67,9 @@ def test_complete_scaffold_workflow(tmp_path: Path) -> None:
         assert (project_path / ".git").exists(), "Git repository must be initialized"
 
         # Verify prek hooks installed
-        assert (project_path / ".git" / "hooks" / "pre-commit").exists(), "Prek hooks must be installed"
+        assert (project_path / ".git" / "hooks" / "pre-commit").exists(), (
+            "Prek hooks must be installed"
+        )
 
         # Verify tests passed (pytest was run during init)
         # The fact that init succeeded means pytest passed
@@ -128,7 +130,13 @@ def test_workflow_creates_working_project(tmp_path: Path) -> None:
 
         # Can import the package
         result = subprocess.run(
-            ["uv", "run", "python", "-c", f"import {package_name}; print({package_name}.__version__)"],
+            [
+                "uv",
+                "run",
+                "python",
+                "-c",
+                f"import {package_name}; print({package_name}.__version__)",
+            ],
             cwd=project_path,
             capture_output=True,
             text=True,
@@ -228,7 +236,9 @@ def test_complete_manual_workflow(tmp_path: Path) -> None:
             capture_output=True,
             text=True,
         )
-        assert test_result.returncode == 0, f"Tests must pass:\n{test_result.stdout}\n{test_result.stderr}"
+        assert test_result.returncode == 0, (
+            f"Tests must pass:\n{test_result.stdout}\n{test_result.stderr}"
+        )
         assert "passed" in test_result.stdout, "Tests must show passed status"
 
         # Step 5: Run pre-commit hooks (should pass on first run)

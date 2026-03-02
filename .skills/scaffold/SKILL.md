@@ -10,6 +10,7 @@ This skill helps you work with scaffold.
 ## When to Use This Skill
 
 Use this skill when:
+
 - User asks about scaffold features or capabilities
 - User wants to use scaffold in their code
 - User needs help with scaffold API or CLI
