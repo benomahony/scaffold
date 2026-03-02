@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scaffold.core import check_project, preview_project
+from scaffold.core import check_project, find_python_projects, preview_project, upgrade_project
 from scaffold.models import ProjectConfig, ProjectType
 
 pytestmark = pytest.mark.unit
@@ -52,12 +52,8 @@ def test_preview_project_replaces_package_name(tmp_path: Path) -> None:
     files = preview_project(config, tmp_path)
 
     assert files is not None, "Files list must not be None"
-    assert any("my_awesome_project" in f for f in files), (
-        "Must replace package name placeholder"
-    )
-    assert not any("__package_name__" in f for f in files), (
-        "Must not contain placeholder in output"
-    )
+    assert any("my_awesome_project" in f for f in files), "Must replace package name placeholder"
+    assert not any("__package_name__" in f for f in files), "Must not contain placeholder in output"
 
 
 def test_check_project_detects_missing_pyproject(tmp_path: Path) -> None:
@@ -148,3 +144,48 @@ def test_check_project_clean_project_has_no_issues(tmp_path: Path) -> None:
 
     assert issues is not None, "Issues list must not be None"
     assert len(issues) == 0, "Clean project must have no issues"
+
+
+def test_upgrade_project_only_reports_changed_files(tmp_path: Path) -> None:
+    """Test upgrade_project only lists files that actually changed."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "my-project"\nrequires-python = ">=3.12"\n'
+        'authors = [{name = "Test"}]\ndescription = "Test"\n'
+    )
+
+    # Stub the pre-commit hook so upgrade_project skips prek install
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook.parent.mkdir(parents=True)
+    hook.touch()
+
+    first_run = upgrade_project(tmp_path)
+    second_run = upgrade_project(tmp_path)
+
+    assert first_run is not None, "First run must return a list"
+    assert len(first_run) > 0, "First run must report updated files"
+    assert second_run is not None, "Second run must return a list"
+    assert len(second_run) == 0, "Second run must report no changes (content identical)"
+
+
+def test_find_python_projects_excludes_venv(tmp_path: Path) -> None:
+    """Test find_python_projects does not traverse .venv directories."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    real_project = tmp_path / "my-project"
+    real_project.mkdir()
+    (real_project / "pyproject.toml").write_text("[project]\nname = 'my-project'\n")
+
+    venv_pkg = real_project / ".venv" / "lib" / "python3.12" / "site-packages" / "somelib"
+    venv_pkg.mkdir(parents=True)
+    (venv_pkg / "pyproject.toml").write_text("[project]\nname = 'somelib'\n")
+
+    projects = find_python_projects(tmp_path)
+
+    assert projects is not None, "Must return a list"
+    assert len(projects) == 1, f"Must find exactly 1 project, found: {[p.name for p in projects]}"
+    assert projects[0] == real_project, "Must find the real project, not the .venv one"
