@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from scaffold.core import create_project, preview_project
 from scaffold.models import ProjectConfig, ProjectType
@@ -59,6 +59,219 @@ def _get_git_config(key: str) -> str | None:
     return None
 
 
+def _show_init_dry_run(config: ProjectConfig, output_path: Path, project_name: str) -> None:
+    assert config is not None, "Config must not be None"
+    assert output_path is not None, "Output path must not be None"
+
+    console.print("[bold]Dry run - Preview mode[/bold]\n")
+    console.print(f"[cyan]Project:[/cyan] {project_name}")
+    console.print(f"[cyan]Type:[/cyan] {config.type.value}")
+    console.print(f"[cyan]Path:[/cyan] {output_path.resolve()}")
+    console.print(f"[cyan]Author:[/cyan] {config.author}")
+    if config.email:
+        console.print(f"[cyan]Email:[/cyan] {config.email}")
+    console.print(f"[cyan]Python:[/cyan] {config.python_version}")
+    console.print(f"[cyan]Git init:[/cyan] {config.git_init}\n")
+    files = preview_project(config, output_path.resolve())
+    console.print("[bold]Files that would be created:[/bold]")
+    for file in files:
+        console.print(f"  {file}")
+    console.print("\n[dim]Run without --dry-run to create the project[/dim]")
+
+
+def _run_init(config: ProjectConfig, output_path: Path) -> None:
+    assert config is not None, "Config must not be None"
+    assert output_path.is_absolute(), "Output path must be absolute"
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Creating project structure...", total=None)
+        try:
+            create_project(config, output_path, run_setup=False)
+            progress.update(task, description="[green]✓[/green] Project structure created!")
+        except Exception as e:
+            progress.update(task, description=f"[red]✗[/red] Failed: {e}")
+            raise
+
+    os.chdir(output_path)
+    from scaffold.core import setup_project_environment
+
+    setup_project_environment(output_path)
+    console.print("\n[green]✨ Project ready![/green]")
+    console.print(f"[dim]{output_path.resolve()}[/dim]\n")
+    console.print("[green]✓[/green] Dependencies installed")
+    console.print("[green]✓[/green] Pre-commit hooks configured")
+    console.print("[green]✓[/green] Tests passing")
+    if sys.stdout.isatty():
+        shell = os.environ.get("SHELL", "/bin/zsh")
+        console.print(f"\n[dim]Starting shell in {output_path.name}/ and opening editor...[/dim]")
+        os.execvp(shell, [shell, "-c", f"nvim . && exec {shell}"])
+
+
+def _check_recursive(path: Path, max_depth: int) -> None:
+    assert path is not None, "Path must not be None"
+    assert max_depth > 0, "Max depth must be positive"
+
+    from scaffold.core import bulk_maintenance
+
+    console.print(f"[bold]Checking projects in:[/bold] {path}\n")
+    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
+    results = bulk_maintenance(path, "check", max_depth=max_depth)
+    total = len(results)
+    if total == 0:
+        console.print("[yellow]No Python projects found[/yellow]")
+        return
+    success_count = sum(1 for r in results if r["status"] == "success" and not r["details"])
+    issues_count = sum(1 for r in results if r["status"] == "success" and r["details"])
+    error_count = sum(1 for r in results if r["status"] == "error")
+    console.print(f"[bold]Checked {total} project(s):[/bold]")
+    console.print(f"  [green]✓[/green] Clean: {success_count}")
+    if issues_count > 0:
+        console.print(f"  [yellow]![/yellow] Issues: {issues_count}")
+    if error_count > 0:
+        console.print(f"  [red]✗[/red] Errors: {error_count}")
+    console.print()
+    for result in results:
+        name = result["project"].name
+        details = result.get("details", [])
+        if result["status"] == "success":
+            if details:
+                console.print(f"[yellow]![/yellow] {name}: {len(details)} issue(s)")
+                for issue in details:
+                    console.print(f"    • {issue}")
+            else:
+                console.print(f"[green]✓[/green] {name}")
+        elif result["status"] == "error":
+            console.print(f"[red]✗[/red] {name}: {result.get('error', 'Unknown error')}")
+    if issues_count > 0:
+        console.print("\n[dim]Run 'sc upgrade -r' to fix infrastructure files[/dim]")
+
+
+def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
+    assert path is not None, "Path must not be None"
+    assert max_depth > 0, "Max depth must be positive"
+
+    from scaffold.core import bulk_maintenance
+
+    console.print(f"[bold]Upgrading projects in:[/bold] {path}\n")
+    console.print(f"[dim]Max depth: {max_depth}{', Dry run mode' if dry_run else ''}[/dim]\n")
+    if dry_run:
+        console.print("[yellow]Dry run - no files will be modified[/yellow]\n")
+    results = bulk_maintenance(path, "upgrade", dry_run=dry_run, max_depth=max_depth)
+    total = len(results)
+    if total == 0:
+        console.print("[yellow]No Python projects found[/yellow]")
+        return
+    success_count = sum(1 for r in results if r["status"] == "success")
+    error_count = sum(1 for r in results if r["status"] == "error")
+    console.print(f"[bold]Processed {total} project(s):[/bold]")
+    console.print(f"  [green]✓[/green] Success: {success_count}")
+    if error_count > 0:
+        console.print(f"  [red]✗[/red] Errors: {error_count}")
+    console.print()
+    for result in results:
+        name = result["project"].name
+        details = result.get("details", [])
+        if result["status"] == "success":
+            icon = "[yellow]~[/yellow]" if dry_run else "[green]✓[/green]"
+            msg = f"{icon} {name}: {len(details)} file(s)" if details else f"[green]✓[/green] {name}: up to date"
+            console.print(msg)
+        elif result["status"] == "error":
+            console.print(f"[red]✗[/red] {name}: {result.get('error', 'Unknown error')}")
+    if dry_run:
+        console.print("\n[dim]Run without --dry-run to apply changes[/dim]")
+    else:
+        console.print("\n[green]Upgrade complete![/green]")
+
+
+def _upgrade_single(path: Path, dry_run: bool) -> None:
+    assert path is not None, "Path must not be None"
+    assert path.exists(), f"Path {path} does not exist"
+
+    from scaffold.core import upgrade_project
+
+    console.print(f"[bold]Upgrading project at:[/bold] {path}\n")
+    if dry_run:
+        console.print("[yellow]Dry run mode - no files will be modified[/yellow]\n")
+    try:
+        changes = upgrade_project(path, dry_run=dry_run)
+        if not changes:
+            console.print("[green]✓ Project is already up to date![/green]")
+            return
+        label = f"[yellow]Would update {len(changes)} file(s):[/yellow]\n" if dry_run else f"[green]Updated {len(changes)} file(s):[/green]\n"
+        console.print(label)
+        for file in changes:
+            console.print(f"  {'[yellow]~[/yellow]' if dry_run else '[green]✓[/green]'} {file}")
+        console.print("\n[dim]Run without --dry-run to apply changes[/dim]" if dry_run else "\n[green]Upgrade complete![/green]")
+    except Exception as e:
+        console.print(f"[red]✗ Upgrade failed: {e}[/red]")
+        raise
+
+
+def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool) -> None:
+    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
+    assert path is not None and path.exists(), "Path must exist"
+
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    from scaffold.core import _run_command_on_repo, find_python_projects
+
+    label = "Test" if command == "pytest" else "Prek"
+    total_label = "tested" if command == "pytest" else "checked"
+    console.print(f"[bold]Running {command} on all projects in:[/bold] {path}\n")
+    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
+    projects = find_python_projects(path, max_depth)
+    if not projects:
+        console.print("[yellow]No Python projects found[/yellow]")
+        return
+    storage = ResultStorage()
+    results: list = []
+    cached_count = passed_count = failed_count = 0
+    cached_results_map = storage.get_latest_by_repo(command) if not force else {}
+    with ProcessPoolExecutor() as executor:
+        futures = {
+            executor.submit(_run_command_on_repo, project, command, 600, storage, force): project
+            for project in projects
+        }
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                cached = cached_results_map.get(str(result.repo_path))
+                is_cached = cached and result.timestamp == cached.timestamp and not force
+                if not is_cached:
+                    storage.save_result(result)
+                else:
+                    cached_count += 1
+                results.append(result)
+                if result.exit_code == 0:
+                    passed_count += 1
+                    status_icon = "[green]✓[/green]"
+                else:
+                    failed_count += 1
+                    status_icon = "[red]✗[/red]"
+                cached_str = " [dim](cached)[/dim]" if is_cached else ""
+                console.print(f"{status_icon} {result.repo_name}{cached_str}")
+            except Exception as e:
+                project = futures[future]
+                console.print(f"[red]Error in {project.name}: {e}[/red]")
+    console.print(f"\n[bold]{label} Results:[/bold]")
+    console.print(f"  Total {total_label}: {len(results)}")
+    if cached_count > 0:
+        console.print(f"  [dim]📦 Cached: {cached_count} (unchanged since last run)[/dim]")
+    console.print(f"  [green]✓[/green] Passed: {passed_count}")
+    if failed_count > 0:
+        console.print(f"  [red]✗[/red] Failed: {failed_count}\n")
+        console.print("[bold]Failed repositories:[/bold]")
+        for result in results:
+            if result.exit_code != 0:
+                console.print(f"  [red]✗[/red] {result.repo_name} (exit {result.exit_code})")
+    else:
+        console.print()
+    console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
+
+
 @app.callback()
 def main(
     _version: bool = typer.Option(
@@ -86,101 +299,42 @@ def init(
     Opens your editor when ready - no manual setup required!
     """
     assert project_name is not None, "Project name must be provided"
+    assert isinstance(dry_run, bool), "Dry run must be boolean"
 
-    # Validate project name
     package_name = project_name.replace("-", "_")
     reserved_names = {"test", "tests", "src", "lib", "data", "docs", "setup", "build", "dist"}
     if package_name in reserved_names:
-        console.print(
-            f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]"
-        )
-        console.print(
-            f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]"
-        )
+        console.print(f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]")
+        console.print(f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]")
         raise typer.Exit(1)
-
-    project_type = ProjectType.PYTHON
 
     if author is None:
         author = _get_git_config("user.name") or "Unknown"
-
     if email is None:
         email = _get_git_config("user.email")
-
     if description is None:
         description = f"Python project: {project_name}"
 
-    assert author is not None, "Author must be provided"
-    assert description is not None, "Description must be provided"
-
     config = ProjectConfig(
         name=project_name,
-        type=project_type,
+        type=ProjectType.PYTHON,
         author=author,
         email=email,
         description=description,
         python_version=python_version,
         git_init=not no_git_init,
     )
-
     output_path = Path.cwd() / project_name
 
     if dry_run:
-        console.print("[bold]Dry run - Preview mode[/bold]\n")
-        console.print(f"[cyan]Project:[/cyan] {project_name}")
-        console.print(f"[cyan]Type:[/cyan] {config.type.value}")
-        console.print(f"[cyan]Path:[/cyan] {output_path.resolve()}")
-        console.print(f"[cyan]Author:[/cyan] {config.author}")
-        if config.email:
-            console.print(f"[cyan]Email:[/cyan] {config.email}")
-        console.print(f"[cyan]Python:[/cyan] {config.python_version}")
-        console.print(f"[cyan]Git init:[/cyan] {config.git_init}\n")
-
-        files = preview_project(config, output_path.resolve())
-        console.print("[bold]Files that would be created:[/bold]")
-        for file in files:
-            console.print(f"  {file}")
-
-        console.print("\n[dim]Run without --dry-run to create the project[/dim]")
+        _show_init_dry_run(config, output_path, project_name)
         return
 
-    assert not output_path.exists(), f"Directory {output_path} already exists"
+    if output_path.exists():
+        console.print(f"[red]✗ Directory '{project_name}' already exists[/red]")
+        raise typer.Exit(1)
 
-    # Create project structure (without running setup yet)
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Creating project structure...", total=None)
-
-        try:
-            create_project(config, output_path.resolve(), run_setup=False)
-            progress.update(task, description="[green]✓[/green] Project structure created!")
-        except Exception as e:
-            progress.update(task, description=f"[red]✗[/red] Failed: {e}")
-            raise
-
-    # cd into project directory IMMEDIATELY after creating files
-    os.chdir(output_path)
-
-    # Now run setup from within the project directory
-    from scaffold.core import setup_project_environment
-
-    setup_project_environment(output_path)
-
-    console.print("\n[green]✨ Project ready![/green]")
-    console.print(f"[dim]{output_path.resolve()}[/dim]\n")
-    console.print("[green]✓[/green] Dependencies installed")
-    console.print("[green]✓[/green] Pre-commit hooks configured")
-    console.print("[green]✓[/green] Tests passing")
-
-    # Start shell in project dir, open nvim, keep shell open after nvim exits
-    if sys.stdout.isatty():
-        shell = os.environ.get("SHELL", "/bin/zsh")
-        console.print(f"\n[dim]Starting shell in {output_path.name}/ and opening editor...[/dim]")
-        # Run nvim, then exec a shell so user stays in project directory
-        os.execvp(shell, [shell, "-c", f"nvim . && exec {shell}"])
+    _run_init(config, output_path.resolve())
 
 
 @app.command()
@@ -197,64 +351,21 @@ def check(
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from scaffold.core import bulk_maintenance, check_project
+    from scaffold.core import check_project
 
     if recursive:
-        console.print(f"[bold]Checking projects in:[/bold] {path}\n")
-        console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
+        _check_recursive(path, max_depth)
+        return
 
-        results = bulk_maintenance(path, "check", max_depth=max_depth)
-
-        total = len(results)
-        if total == 0:
-            console.print("[yellow]No Python projects found[/yellow]")
-            return
-
-        success_count = sum(1 for r in results if r["status"] == "success" and not r["details"])
-        issues_count = sum(1 for r in results if r["status"] == "success" and r["details"])
-        error_count = sum(1 for r in results if r["status"] == "error")
-
-        console.print(f"[bold]Checked {total} project(s):[/bold]")
-        console.print(f"  [green]✓[/green] Clean: {success_count}")
-        if issues_count > 0:
-            console.print(f"  [yellow]![/yellow] Issues: {issues_count}")
-        if error_count > 0:
-            console.print(f"  [red]✗[/red] Errors: {error_count}")
-        console.print()
-
-        for result in results:
-            project_name = result["project"].name
-            status = result["status"]
-            details = result.get("details", [])
-
-            if status == "success":
-                if details:
-                    console.print(f"[yellow]![/yellow] {project_name}: {len(details)} issue(s)")
-                    for issue in details:
-                        console.print(f"    • {issue}")
-                else:
-                    console.print(f"[green]✓[/green] {project_name}")
-            elif status == "error":
-                console.print(
-                    f"[red]✗[/red] {project_name}: {result.get('error', 'Unknown error')}"
-                )
-
-        if issues_count > 0:
-            console.print("\n[dim]Run 'sc upgrade -r' to fix infrastructure files[/dim]")
-    else:
-        console.print(f"[bold]Checking project at:[/bold] {path}\n")
-
-        issues = check_project(path)
-
-        if not issues:
-            console.print("[green]✓ Project structure looks good![/green]")
-            return
-
-        console.print(f"[yellow]Found {len(issues)} issue(s):[/yellow]\n")
-        for issue in issues:
-            console.print(f"  [red]✗[/red] {issue}")
-
-        console.print("\n[dim]Run 'sc upgrade' to fix infrastructure files[/dim]")
+    console.print(f"[bold]Checking project at:[/bold] {path}\n")
+    issues = check_project(path)
+    if not issues:
+        console.print("[green]✓ Project structure looks good![/green]")
+        return
+    console.print(f"[yellow]Found {len(issues)} issue(s):[/yellow]\n")
+    for issue in issues:
+        console.print(f"  [red]✗[/red] {issue}")
+    console.print("\n[dim]Run 'sc upgrade' to fix infrastructure files[/dim]")
 
 
 @app.command()
@@ -272,80 +383,10 @@ def upgrade(
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from scaffold.core import bulk_maintenance, upgrade_project
-
     if recursive:
-        console.print(f"[bold]Upgrading projects in:[/bold] {path}\n")
-        console.print(f"[dim]Max depth: {max_depth}{', Dry run mode' if dry_run else ''}[/dim]\n")
-
-        if dry_run:
-            console.print("[yellow]Dry run - no files will be modified[/yellow]\n")
-
-        results = bulk_maintenance(path, "upgrade", dry_run=dry_run, max_depth=max_depth)
-
-        total = len(results)
-        if total == 0:
-            console.print("[yellow]No Python projects found[/yellow]")
-            return
-
-        success_count = sum(1 for r in results if r["status"] == "success")
-        error_count = sum(1 for r in results if r["status"] == "error")
-
-        console.print(f"[bold]Processed {total} project(s):[/bold]")
-        console.print(f"  [green]✓[/green] Success: {success_count}")
-        if error_count > 0:
-            console.print(f"  [red]✗[/red] Errors: {error_count}")
-        console.print()
-
-        for result in results:
-            project_name = result["project"].name
-            status = result["status"]
-            details = result.get("details", [])
-
-            if status == "success":
-                if details:
-                    icon = "[yellow]~[/yellow]" if dry_run else "[green]✓[/green]"
-                    console.print(f"{icon} {project_name}: {len(details)} file(s)")
-                else:
-                    console.print(f"[green]✓[/green] {project_name}: up to date")
-            elif status == "error":
-                console.print(
-                    f"[red]✗[/red] {project_name}: {result.get('error', 'Unknown error')}"
-                )
-
-        if dry_run:
-            console.print("\n[dim]Run without --dry-run to apply changes[/dim]")
-        else:
-            console.print("\n[green]Upgrade complete![/green]")
+        _upgrade_recursive(path, dry_run, max_depth)
     else:
-        console.print(f"[bold]Upgrading project at:[/bold] {path}\n")
-
-        if dry_run:
-            console.print("[yellow]Dry run mode - no files will be modified[/yellow]\n")
-
-        try:
-            changes = upgrade_project(path, dry_run=dry_run)
-
-            if not changes:
-                console.print("[green]✓ Project is already up to date![/green]")
-                return
-
-            if dry_run:
-                console.print(f"[yellow]Would update {len(changes)} file(s):[/yellow]\n")
-            else:
-                console.print(f"[green]Updated {len(changes)} file(s):[/green]\n")
-
-            for file in changes:
-                console.print(f"  {'[yellow]~[/yellow]' if dry_run else '[green]✓[/green]'} {file}")
-
-            if dry_run:
-                console.print("\n[dim]Run without --dry-run to apply changes[/dim]")
-            else:
-                console.print("\n[green]Upgrade complete![/green]")
-
-        except Exception as e:
-            console.print(f"[red]✗ Upgrade failed: {e}[/red]")
-            raise
+        _upgrade_single(path, dry_run)
 
 
 @app.command()
@@ -361,92 +402,12 @@ def test(
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from concurrent.futures import ProcessPoolExecutor, as_completed
-
-    from scaffold.core import _run_command_on_repo, find_python_projects
-
     if not recursive:
         console.print("[bold]Running pytest on current project...[/bold]\n")
         result = subprocess.run(["uv", "run", "pytest"], check=False)
         raise typer.Exit(result.returncode)
 
-    console.print(f"[bold]Running pytest on all projects in:[/bold] {path}\n")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-
-    projects = find_python_projects(path, max_depth)
-
-    if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-
-    storage = ResultStorage()
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Running pytest...", total=len(projects))
-
-        results = []
-        cached_count = 0
-
-        # Get cached results before execution to compare timestamps
-        cached_results_map = storage.get_latest_by_repo("pytest") if not force else {}
-
-        with ProcessPoolExecutor() as executor:
-            futures = {
-                executor.submit(
-                    _run_command_on_repo, project, "pytest", 600, storage, force
-                ): project
-                for project in projects
-            }
-
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-
-                    # Check if result timestamp matches cached timestamp (means it was cached)
-                    cached = cached_results_map.get(str(result.repo_path))
-                    is_cached = cached and result.timestamp == cached.timestamp and not force
-
-                    if not is_cached:
-                        storage.save_result(result)
-                    else:
-                        cached_count += 1
-
-                    results.append(result)
-                    status = "✓" if result.exit_code == 0 else "✗"
-                    cache_indicator = " (cached)" if is_cached else ""
-                    desc = f"Running pytest... {status}{cache_indicator}"
-                    progress.update(task, advance=1, description=desc)
-                except Exception as e:
-                    project = futures[future]
-                    console.print(f"[red]Error in {project.name}: {e}[/red]")
-                    progress.advance(task)
-
-    total = len(results)
-    passed = sum(1 for r in results if r.exit_code == 0)
-    failed = sum(1 for r in results if r.exit_code != 0)
-
-    console.print("\n[bold]Test Results:[/bold]")
-    console.print(f"  Total tested: {total}")
-    if cached_count > 0:
-        console.print(f"  [dim]📦 Cached: {cached_count} (unchanged since last run)[/dim]")
-    console.print(f"  [green]✓[/green] Passed: {passed}")
-    if failed > 0:
-        console.print(f"  [red]✗[/red] Failed: {failed}\n")
-
-        console.print("[bold]Failed repositories:[/bold]")
-        for result in results:
-            if result.exit_code != 0:
-                console.print(f"  [red]✗[/red] {result.repo_name} (exit {result.exit_code})")
-    else:
-        console.print()
-
-    console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
+    _run_bulk_interactive("pytest", path, max_depth, force)
 
 
 @app.command()
@@ -462,90 +423,12 @@ def prek(
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from concurrent.futures import ProcessPoolExecutor, as_completed
-
-    from scaffold.core import _run_command_on_repo, find_python_projects
-
     if not recursive:
         console.print("[bold]Running prek on current project...[/bold]\n")
         result = subprocess.run(["uv", "run", "prek", "run", "--all-files"], check=False)
         raise typer.Exit(result.returncode)
 
-    console.print(f"[bold]Running prek on all projects in:[/bold] {path}\n")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-
-    projects = find_python_projects(path, max_depth)
-
-    if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-
-    storage = ResultStorage()
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Running prek...", total=len(projects))
-
-        results = []
-        cached_count = 0
-
-        # Get cached results before execution to compare timestamps
-        cached_results_map = storage.get_latest_by_repo("prek") if not force else {}
-
-        with ProcessPoolExecutor() as executor:
-            futures = {
-                executor.submit(_run_command_on_repo, project, "prek", 600, storage, force): project
-                for project in projects
-            }
-
-            for future in as_completed(futures):
-                try:
-                    result = future.result()
-
-                    # Check if result timestamp matches cached timestamp (means it was cached)
-                    cached = cached_results_map.get(str(result.repo_path))
-                    is_cached = cached and result.timestamp == cached.timestamp and not force
-
-                    if not is_cached:
-                        storage.save_result(result)
-                    else:
-                        cached_count += 1
-
-                    results.append(result)
-                    status = "✓" if result.exit_code == 0 else "✗"
-                    cache_indicator = " (cached)" if is_cached else ""
-                    desc = f"Running prek... {status}{cache_indicator}"
-                    progress.update(task, advance=1, description=desc)
-                except Exception as e:
-                    project = futures[future]
-                    console.print(f"[red]Error in {project.name}: {e}[/red]")
-                    progress.advance(task)
-
-    total = len(results)
-    passed = sum(1 for r in results if r.exit_code == 0)
-    failed = sum(1 for r in results if r.exit_code != 0)
-
-    console.print("\n[bold]Prek Results:[/bold]")
-    console.print(f"  Total checked: {total}")
-    if cached_count > 0:
-        console.print(f"  [dim]📦 Cached: {cached_count} (unchanged since last run)[/dim]")
-    console.print(f"  [green]✓[/green] Passed: {passed}")
-    if failed > 0:
-        console.print(f"  [red]✗[/red] Failed: {failed}\n")
-
-        console.print("[bold]Failed repositories:[/bold]")
-        for result in results:
-            if result.exit_code != 0:
-                console.print(f"  [red]✗[/red] {result.repo_name} (exit {result.exit_code})")
-    else:
-        console.print()
-
-    console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
+    _run_bulk_interactive("prek", path, max_depth, force)
 
 
 @app.command(name="list")
@@ -563,19 +446,14 @@ def list_projects(
 
     console.print(f"[bold]Finding Python projects in:[/bold] {path}")
     console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-
     projects = find_python_projects(path, max_depth)
-
     if not projects:
         console.print("[yellow]No Python projects found[/yellow]")
         return
-
     console.print(f"[bold]Found {len(projects)} project(s):[/bold]\n")
-
     for project in projects:
         relative = project.relative_to(path) if project.is_relative_to(path) else project
         console.print(f"  • {relative}")
-
     console.print("\n[dim]Run 'sc test -r' or 'sc prek -r' to execute commands[/dim]")
 
 
@@ -586,7 +464,6 @@ def _print_results_by_repo(results: list) -> None:
     from datetime import datetime, timedelta
 
     now = datetime.now()
-
     grouped = {}
     for result in results:
         repo = result.repo_name
@@ -598,7 +475,6 @@ def _print_results_by_repo(results: list) -> None:
         repo_data = grouped[repo_name]
         pytest_result = repo_data.get("pytest")
         prek_result = repo_data.get("prek")
-
         pytest_status = ""
         prek_status = ""
         timestamp_str = ""
@@ -625,7 +501,6 @@ def _print_results_by_repo(results: list) -> None:
         test_col = f"pytest: {pytest_status}" if pytest_result else ""
         prek_col = f"prek: {prek_status}" if prek_result else ""
         combined = f"{test_col}  {prek_col}".strip()
-
         console.print(f"{repo_name:30} {combined:40} {timestamp_str}")
 
 
@@ -659,16 +534,13 @@ def status(
     from scaffold.core import find_python_projects
 
     storage = ResultStorage()
-
     if not storage.status_file.exists():
         console.print("[yellow]No results found. Run 'sc test -r' or 'sc prek -r' first.[/yellow]")
         return
 
     projects = find_python_projects(path, max_depth=3)
     project_paths = {str(p) for p in projects}
-
     all_results = storage.load_results(command=command) if command else storage.load_results()
-
     results = [r for r in all_results if r.repo_path in project_paths]
 
     if not results:
@@ -682,9 +554,7 @@ def status(
     if command:
         console.print(f"[dim]Filtered by: {command}[/dim]")
     console.print(f"[dim]Total results: {len(results)}[/dim]\n")
-
     _print_results_by_repo(results)
-
     if detailed:
         _print_detailed_results(results)
 
