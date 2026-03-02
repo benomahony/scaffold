@@ -1,7 +1,6 @@
 import os
 import subprocess
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -107,25 +106,25 @@ def setup_project_environment(project_path: Path) -> None:
     assert project_path is not None, "Project path must not be None"
     assert (project_path / "pyproject.toml").exists(), "pyproject.toml must exist"
 
-    import sys
+    from rich.console import Console
 
-    print("\n📦 Installing dependencies...", flush=True)
-    sys.stdout.flush()
+    _console = Console()
+
+    _console.print("\n[bold]Installing dependencies...[/bold]")
     subprocess.run(["uv", "sync", "--all-extras"], cwd=project_path, check=True)
 
-    print("\n🪝 Installing pre-commit hooks...", flush=True)
-    sys.stdout.flush()
+    _console.print("\n[bold]Installing pre-commit hooks...[/bold]")
     subprocess.run(["uv", "run", "prek", "install"], cwd=project_path, check=True)
 
-    print("\n🔍 Running pre-commit on all files...", flush=True)
-    sys.stdout.flush()
+    _console.print("\n[bold]Running pre-commit on all files...[/bold]")
     subprocess.run(["uv", "run", "prek", "run", "--all-files"], cwd=project_path, check=True)
 
-    print("\n🧪 Running tests...", flush=True)
-    sys.stdout.flush()
+    _console.print("\n[bold]Running tests...[/bold]")
     result = subprocess.run(["uv", "run", "pytest", "-v"], cwd=project_path, check=False)
     if result.returncode != 0:
-        print(f"\n⚠️  Tests had issues (exit {result.returncode}), but continuing...")
+        _console.print(
+            f"[yellow]⚠ Tests had issues (exit {result.returncode}), continuing...[/yellow]"
+        )
 
 
 def check_project(project_path: Path) -> list[str]:
@@ -223,10 +222,13 @@ def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
 
     for template_path, output_file in files_to_upgrade:
         output_path = project_path / output_file
+        content = engine.render_template(template_path, context)
+
+        if output_path.exists() and output_path.read_text() == content:
+            continue
 
         if not dry_run:
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            content = engine.render_template(template_path, context)
             output_path.write_text(content)
 
         updated_files.append(output_file)
@@ -244,12 +246,17 @@ def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
     return updated_files
 
 
+_SKIP_DIRS = {".venv", "venv", "node_modules", "__pycache__", "build", "dist", ".tox"}
+
+
 def find_python_projects(root_path: Path, max_depth: int = 3) -> list[Path]:
     assert root_path is not None, "Root path must not be None"
     assert max_depth > 0, "Max depth must be positive"
 
     projects = []
     for pyproject in root_path.rglob("pyproject.toml"):
+        if any(part in _SKIP_DIRS for part in pyproject.parts):
+            continue
         project_path = pyproject.parent
         depth = len(project_path.relative_to(root_path).parts)
 
@@ -411,46 +418,3 @@ def _run_command_on_repo(
         stderr=stderr,
         git_commit=git_commit,
     )
-
-
-def run_bulk_command(
-    root_path: Path,
-    command: str,
-    max_depth: int = 3,
-    storage: ResultStorage | None = None,
-) -> list[CommandResult]:
-    assert root_path is not None, "Root path must not be None"
-    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-
-    if storage is None:
-        storage = ResultStorage()
-
-    projects = find_python_projects(root_path, max_depth)
-    results = []
-
-    with ProcessPoolExecutor() as executor:
-        futures = {
-            executor.submit(_run_command_on_repo, project, command): project for project in projects
-        }
-
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-                storage.save_result(result)
-                results.append(result)
-            except Exception as e:
-                project = futures[future]
-                error_result = CommandResult(
-                    repo_path=str(project),
-                    repo_name=project.name,
-                    command=command,
-                    timestamp=datetime.now(),
-                    exit_code=-1,
-                    duration_seconds=0.0,
-                    stdout="",
-                    stderr=f"Exception: {e}",
-                )
-                storage.save_result(error_result)
-                results.append(error_result)
-
-    return results
