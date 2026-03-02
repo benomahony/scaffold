@@ -20,6 +20,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "pytest-examples>=0.0.10",
     "pytest-xdist>=3.0.0",
+    "pytest-testmon>=2.0.0",
     "ruff>=0.3.0",
     "basedpyright>=1.10.0",
     "prek>=0.1.0",
@@ -93,7 +94,7 @@ extend_exclude = ["tests"]
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["{{ package_name }}"]
-DEP002 = ["pytest", "pytest-cov", "pytest-examples", "pytest-xdist", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "bump-my-version", "zensical"]
+DEP002 = ["pytest", "pytest-cov", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "bump-my-version", "zensical"]
 DEP003 = ["{{ package_name }}", "mcp"]
 
 [tool.bumpversion]

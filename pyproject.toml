@@ -20,6 +20,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-examples>=0.0.10",
     "pytest-xdist>=3.5.0",
+    "pytest-testmon>=2.0.0",
     "ruff>=0.3.0",
     "basedpyright>=1.10.0",
     "pre-commit>=3.6.0",
@@ -68,5 +69,5 @@ extend_exclude = ["tests"]
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["scaffold"]
-DEP002 = ["pytest", "pytest-examples", "pytest-xdist", "ruff", "basedpyright", "pre-commit", "vulture", "bandit", "deptry", "cliqa"]
+DEP002 = ["pytest", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "pre-commit", "vulture", "bandit", "deptry", "cliqa"]
 DEP003 = ["scaffold"]
