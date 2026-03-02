@@ -47,19 +47,19 @@ repos:
     hooks:
       - id: ruff-format
         name: ruff-format
-        entry: uv run ruff format
+        entry: uv run --frozen ruff format
         language: system
         types_or: [python, pyi]
         require_serial: true
       - id: ruff
         name: ruff
-        entry: uv run ruff check --fix --exit-non-zero-on-fix
+        entry: uv run --frozen ruff check --fix --exit-non-zero-on-fix
         language: system
         types_or: [python, pyi]
         require_serial: true
       - id: basedpyright
         name: basedpyright
-        entry: uv run basedpyright
+        entry: uv run --frozen basedpyright
         language: system
         types: [python]
         files: ^src/scaffold/
@@ -67,7 +67,7 @@ repos:
         require_serial: true
       - id: vulture
         name: vulture
-        entry: uv run vulture src/scaffold/ --exclude "**/models.py" --min-confidence 80
+        entry: uv run --frozen vulture src/scaffold/ --exclude "**/models.py" --min-confidence 80
         language: system
         types: [python]
         files: ^src/scaffold/
@@ -75,21 +75,21 @@ repos:
         require_serial: true
       - id: bandit
         name: bandit
-        entry: uv run bandit -c pyproject.toml -r src/scaffold/
+        entry: uv run --frozen bandit -c pyproject.toml -r src/scaffold/
         language: system
         files: ^src/scaffold/
         exclude: ^tests/
         pass_filenames: false
       - id: cliqa
         name: cliqa
-        entry: uv run cliqa analyze scaffold
+        entry: uv run --frozen cliqa analyze scaffold
         language: system
         files: ^(pyproject\.toml|src/.*\.py)$
         pass_filenames: false
         require_serial: true
       - id: deptry
         name: deptry
-        entry: uv run deptry . --extend-exclude "\.venv|tests"
+        entry: uv run --frozen deptry . --extend-exclude "\.venv|tests"
         language: system
         pass_filenames: false
         require_serial: true
