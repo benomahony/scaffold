@@ -1,6 +1,6 @@
 [project]
 site_name = "scaffold"
-site_url = "https://Ben O'Mahony.github.io/scaffold"
+site_url = "https://benomahony.github.io/scaffold"
 site_description = "Scaffold new Python projects with opinionated defaults"
 site_author = "Ben O'Mahony"
 copyright = "&copy; 2026 Ben O'Mahony"
@@ -8,5 +8,38 @@ docs_dir = "docs"
 site_dir = "site"
 use_directory_urls = true
 
+nav = [
+  { "Home" = "index.md" },
+  { "Tutorials" = [
+    { "Overview" = "tutorials/index.md" },
+    { "Your first project" = "tutorials/first-project.md" },
+  ]},
+  { "How-to" = [
+    { "Overview" = "how-to/index.md" },
+    { "Create a project" = "how-to/create-project.md" },
+    { "Check project health" = "how-to/check-health.md" },
+    { "Upgrade infrastructure" = "how-to/upgrade-project.md" },
+    { "Bulk test" = "how-to/bulk-test.md" },
+  ]},
+  { "Reference" = [
+    { "Overview" = "reference/index.md" },
+    { "CLI" = "reference/cli.md" },
+    { "API" = "reference/api.md" },
+  ]},
+  { "Explanation" = [
+    { "Overview" = "explanation/index.md" },
+    { "Design decisions" = "explanation/design.md" },
+  ]},
+]
+
 [project.theme]
 variant = "modern"
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+inventories = ["https://docs.python.org/3/objects.inv"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+inherited_members = true
+show_source = false
