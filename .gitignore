@@ -9,5 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
+# Docs build output
+site/
+
 # Claude Code
 .claude/
