@@ -715,7 +715,7 @@ def test_bulk_status_command(tmp_path: Path) -> None:
 
         assert result.returncode == 0, f"Bulk status must succeed: {result.stderr}"
         assert "Bulk Command Results" in result.stdout, "Must show results header"
-        assert "Command: pytest" in result.stdout, "Must filter by pytest"
+        assert "Filtered by: pytest" in result.stdout, "Must filter by pytest"
         assert "status-test" in result.stdout or "status_test" in result.stdout, (
             "Must show project in results"
         )
