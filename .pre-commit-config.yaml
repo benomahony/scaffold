@@ -29,7 +29,19 @@ repos:
     rev: v0.47.0
     hooks:
       - id: markdownlint
-        args: [--fix, --disable, MD013, MD024, MD033, MD036, MD040, MD041, MD060, --]
+        args:
+          [
+            --fix,
+            --disable,
+            MD013,
+            MD024,
+            MD033,
+            MD036,
+            MD040,
+            MD041,
+            MD060,
+            --,
+          ]
 
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v4.12.1
@@ -62,7 +74,6 @@ repos:
         entry: uv run --frozen basedpyright
         language: system
         types: [python]
-        files: ^src/scaffold/
         pass_filenames: true
         require_serial: true
       - id: vulture
@@ -70,14 +81,12 @@ repos:
         entry: uv run --frozen vulture src/scaffold/ --exclude "**/models.py" --min-confidence 80
         language: system
         types: [python]
-        files: ^src/scaffold/
         pass_filenames: false
         require_serial: true
       - id: bandit
         name: bandit
         entry: uv run --frozen bandit -c pyproject.toml -r src/scaffold/
         language: system
-        files: ^src/scaffold/
         exclude: ^tests/
         pass_filenames: false
       - id: cliqa
