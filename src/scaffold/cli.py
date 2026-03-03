@@ -177,7 +177,11 @@ def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
         details = result.get("details", [])
         if result["status"] == "success":
             icon = "[yellow]~[/yellow]" if dry_run else "[green]✓[/green]"
-            msg = f"{icon} {name}: {len(details)} file(s)" if details else f"[green]✓[/green] {name}: up to date"
+            msg = (
+                f"{icon} {name}: {len(details)} file(s)"
+                if details
+                else f"[green]✓[/green] {name}: up to date"
+            )
             console.print(msg)
         elif result["status"] == "error":
             console.print(f"[red]✗[/red] {name}: {result.get('error', 'Unknown error')}")
@@ -201,35 +205,36 @@ def _upgrade_single(path: Path, dry_run: bool) -> None:
         if not changes:
             console.print("[green]✓ Project is already up to date![/green]")
             return
-        label = f"[yellow]Would update {len(changes)} file(s):[/yellow]\n" if dry_run else f"[green]Updated {len(changes)} file(s):[/green]\n"
+        label = (
+            f"[yellow]Would update {len(changes)} file(s):[/yellow]\n"
+            if dry_run
+            else f"[green]Updated {len(changes)} file(s):[/green]\n"
+        )
         console.print(label)
         for file in changes:
             console.print(f"  {'[yellow]~[/yellow]' if dry_run else '[green]✓[/green]'} {file}")
-        console.print("\n[dim]Run without --dry-run to apply changes[/dim]" if dry_run else "\n[green]Upgrade complete![/green]")
+        console.print(
+            "\n[dim]Run without --dry-run to apply changes[/dim]"
+            if dry_run
+            else "\n[green]Upgrade complete![/green]"
+        )
     except Exception as e:
         console.print(f"[red]✗ Upgrade failed: {e}[/red]")
         raise
 
 
-def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool) -> None:
+def _execute_bulk(
+    command: str, projects: list, storage: ResultStorage, cached_results_map: dict, force: bool
+) -> tuple[list, int, int, int]:
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert path is not None and path.exists(), "Path must exist"
+    assert projects is not None, "Projects must not be None"
 
     from concurrent.futures import ProcessPoolExecutor, as_completed
-    from scaffold.core import _run_command_on_repo, find_python_projects
 
-    label = "Test" if command == "pytest" else "Prek"
-    total_label = "tested" if command == "pytest" else "checked"
-    console.print(f"[bold]Running {command} on all projects in:[/bold] {path}\n")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-    projects = find_python_projects(path, max_depth)
-    if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-    storage = ResultStorage()
+    from scaffold.core import _run_command_on_repo
+
     results: list = []
     cached_count = passed_count = failed_count = 0
-    cached_results_map = storage.get_latest_by_repo(command) if not force else {}
     with ProcessPoolExecutor() as executor:
         futures = {
             executor.submit(_run_command_on_repo, project, command, 600, storage, force): project
@@ -256,6 +261,22 @@ def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool)
             except Exception as e:
                 project = futures[future]
                 console.print(f"[red]Error in {project.name}: {e}[/red]")
+    return results, cached_count, passed_count, failed_count
+
+
+def _print_bulk_summary(
+    command: str,
+    results: list,
+    storage: ResultStorage,
+    cached_count: int,
+    passed_count: int,
+    failed_count: int,
+) -> None:
+    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
+    assert results is not None, "Results must not be None"
+
+    label = "Test" if command == "pytest" else "Prek"
+    total_label = "tested" if command == "pytest" else "checked"
     console.print(f"\n[bold]{label} Results:[/bold]")
     console.print(f"  Total {total_label}: {len(results)}")
     if cached_count > 0:
@@ -270,6 +291,26 @@ def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool)
     else:
         console.print()
     console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
+
+
+def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool) -> None:
+    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
+    assert path is not None and path.exists(), "Path must exist"
+
+    from scaffold.core import find_python_projects
+
+    console.print(f"[bold]Running {command} on all projects in:[/bold] {path}\n")
+    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
+    projects = find_python_projects(path, max_depth)
+    if not projects:
+        console.print("[yellow]No Python projects found[/yellow]")
+        return
+    storage = ResultStorage()
+    cached_results_map = storage.get_latest_by_repo(command) if not force else {}
+    results, cached_count, passed_count, failed_count = _execute_bulk(
+        command, projects, storage, cached_results_map, force
+    )
+    _print_bulk_summary(command, results, storage, cached_count, passed_count, failed_count)
 
 
 @app.callback()
@@ -304,8 +345,12 @@ def init(
     package_name = project_name.replace("-", "_")
     reserved_names = {"test", "tests", "src", "lib", "data", "docs", "setup", "build", "dist"}
     if package_name in reserved_names:
-        console.print(f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]")
-        console.print(f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]")
+        console.print(
+            f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]"
+        )
+        console.print(
+            f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]"
+        )
         raise typer.Exit(1)
 
     if author is None:
