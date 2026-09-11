@@ -42,10 +42,11 @@ sc upgrade [OPTIONS]
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--path` | PATH | cwd | Project path |
-| `--dry-run` | FLAG | off | Preview changes |
-| `--diff, -D` | FLAG | off | Show a unified diff of each change |
+| `--dry-run` | FLAG | off | Preview which files change |
 | `--recursive, -r` | FLAG | off | Upgrade all projects in tree |
 | `--max-depth` | INT | 3 | Directory depth limit |
+
+Review the applied changes with `git diff`.
 
 ## sc adopt
 
@@ -59,7 +60,6 @@ sc adopt [OPTIONS]
 |---|---|---|---|
 | `--path` | PATH | cwd | Repository path |
 | `--dry-run` | FLAG | off | Preview without writing |
-| `--diff, -D` | FLAG | off | Show a unified diff of each new file |
 
 ## sc test
 

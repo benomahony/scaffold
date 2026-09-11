@@ -6,7 +6,7 @@ Keep Python repos current with opinionated tooling via the `sc` CLI.
 
 ```bash
 sc check -r          # audit every repo in a tree
-sc upgrade --diff    # review infrastructure changes before they land
+sc upgrade           # refresh infrastructure files (review with git diff)
 sc adopt             # bring an existing repo up to standard
 sc init my-project   # start a new project
 ```

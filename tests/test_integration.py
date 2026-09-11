@@ -234,27 +234,27 @@ def test_scaffold_adopt_command(tmp_path: Path) -> None:
     assert (repo / "main.py").read_text() == "print('hi')\n", "Must not touch existing files"
 
 
-def test_scaffold_upgrade_diff_dry_run(tmp_path: Path) -> None:
-    """Test upgrade --diff --dry-run shows a diff and writes nothing."""
+def test_scaffold_upgrade_dry_run(tmp_path: Path) -> None:
+    """Test upgrade --dry-run lists files without writing them."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
-    repo = tmp_path / "diffrepo"
+    repo = tmp_path / "dryrepo"
     repo.mkdir()
     (repo / "pyproject.toml").write_text(
-        '[project]\nname = "diffrepo"\nrequires-python = ">=3.12"\n'
+        '[project]\nname = "dryrepo"\nrequires-python = ">=3.12"\n'
         'authors = [{name = "Test"}]\ndescription = "Test"\n'
     )
 
     result = subprocess.run(
-        ["uv", "run", "scaffold", "upgrade", "--path", str(repo), "--dry-run", "--diff"],
+        ["uv", "run", "scaffold", "upgrade", "--path", str(repo), "--dry-run"],
         capture_output=True,
         text=True,
     )
 
-    assert result.returncode == 0, f"Upgrade diff must succeed: {result.stderr}"
-    assert "@@" in result.stdout or "+++" in result.stdout, "Must render a unified diff"
+    assert result.returncode == 0, f"Upgrade dry-run must succeed: {result.stderr}"
     assert "Would update" in result.stdout, "Must indicate dry-run summary"
+    assert ".pre-commit-config.yaml" in result.stdout, "Must list the files that would change"
     assert not (repo / ".pre-commit-config.yaml").exists(), "Dry-run must not write files"
 
 

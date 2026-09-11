@@ -19,8 +19,7 @@ Existing files are never touched.
 
 ```bash
 sc adopt
-sc adopt --dry-run   # preview without writing
-sc adopt --diff      # show the contents of each new file as a diff
+sc adopt --dry-run   # preview which files would be created
 ```
 
 After adopting, install dependencies and keep the managed files current:

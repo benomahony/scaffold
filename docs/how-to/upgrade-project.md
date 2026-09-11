@@ -15,10 +15,11 @@
 
 ```bash
 sc upgrade
-sc upgrade --dry-run   # preview changes without writing
-sc upgrade --diff      # review a unified diff of every change
-sc upgrade --diff --dry-run
+sc upgrade --dry-run   # preview which files change without writing
 ```
+
+Because the upgraded files are tracked in git, review the applied changes with
+`git diff` and revert any you want to keep with `git checkout`.
 
 ## All projects in a tree
 

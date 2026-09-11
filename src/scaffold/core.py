@@ -241,15 +241,10 @@ def plan_upgrade(project_path: Path) -> list[FileChange]:
         target_rel = output_file.format(package_name=package_name)
         target = project_path / target_rel
         new_content = engine.render_template(template_path, context)
-        old_content = target.read_text() if target.exists() else ""
-        if old_content == new_content:
+        if target.exists() and target.read_text() == new_content:
             continue
         action = "modify" if target.exists() else "create"
-        changes.append(
-            FileChange(
-                path=target_rel, action=action, old_content=old_content, new_content=new_content
-            )
-        )
+        changes.append(FileChange(path=target_rel, action=action, new_content=new_content))
     return changes
 
 
@@ -324,15 +319,13 @@ def plan_adopt(project_path: Path) -> list[FileChange]:
         if (project_path / target_rel).exists():
             continue
         content = engine.render_template(template_path, context)
-        changes.append(
-            FileChange(path=target_rel, action="create", old_content="", new_content=content)
-        )
+        changes.append(FileChange(path=target_rel, action="create", new_content=content))
 
     for empty_file in _ADOPT_EMPTY_FILES:
         target_rel = empty_file.format(package_name=package_name)
         if (project_path / target_rel).exists():
             continue
-        changes.append(FileChange(path=target_rel, action="create", old_content="", new_content=""))
+        changes.append(FileChange(path=target_rel, action="create", new_content=""))
     return changes
 
 

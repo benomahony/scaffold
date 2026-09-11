@@ -56,5 +56,4 @@ class ProjectConfig(BaseModel):
 class FileChange(BaseModel):
     path: str
     action: Literal["create", "modify"]
-    old_content: str
     new_content: str

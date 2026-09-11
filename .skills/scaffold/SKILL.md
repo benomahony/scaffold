@@ -42,7 +42,7 @@ result = example_function("World")
 ## Key Features
 
 - Maintains existing repos: `sc check`, `sc upgrade`, `sc adopt`
-- `sc upgrade --diff` shows a unified diff before infrastructure files change
+- `sc upgrade --dry-run` previews which files change; review applied changes with git
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
 - Runs pytest/prek across many repos with `-r` and caches results (`sc status`)
 - Creates new projects with modern tooling (uv, ruff, basedpyright, pytest, prek)

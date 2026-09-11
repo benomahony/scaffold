@@ -18,7 +18,7 @@ uv tool install git+https://github.com/benomahony/scaffold
 ```bash
 sc check -r          # audit every repo in a directory tree
 sc upgrade           # refresh scaffold managed infrastructure files
-sc upgrade --diff    # review a unified diff before changes land
+sc upgrade --dry-run # preview which files change first
 sc upgrade -r        # upgrade every repo in a tree
 sc adopt             # bring a repo up to standard without clobbering files
 sc test -r           # run pytest across all repos (cached)
@@ -28,7 +28,8 @@ sc status            # show the latest test and prek results
 
 `sc upgrade` rewrites the files scaffold owns (`.pre-commit-config.yaml`,
 `llms.txt`, `zensical.toml`, CI workflow, MCP server, Agent Skill). Use
-`--diff` or `--dry-run` to see exactly what will change first.
+`--dry-run` to preview which files change; since they are tracked in git,
+review the applied changes with `git diff`.
 
 `sc adopt` onboards a repository that was not created by scaffold. It adds any
 missing standard files (including `pyproject.toml`) and never overwrites

@@ -20,7 +20,7 @@ Examples:
   sc check                              Check project health
   sc check -r                           Check every repo in a tree
   sc upgrade                            Refresh infrastructure files
-  sc upgrade --diff                     Preview changes as a diff
+  sc upgrade --dry-run                  Preview which files change
   sc adopt                              Bring an existing repo up to standard
   sc test -r                            Run pytest across all repos
   sc prek -r                            Run prek across all repos
@@ -192,32 +192,6 @@ def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
         console.print("\n[green]Upgrade complete![/green]")
 
 
-def _render_change_diffs(changes: list) -> None:
-    assert changes is not None, "Changes must not be None"
-    assert len(changes) > 0, "Changes must not be empty"
-
-    import difflib
-
-    for change in changes:
-        console.print(f"\n[bold cyan]{change.path}[/bold cyan] [dim]({change.action})[/dim]")
-        diff = difflib.unified_diff(
-            change.old_content.splitlines(),
-            change.new_content.splitlines(),
-            fromfile=f"a/{change.path}",
-            tofile=f"b/{change.path}",
-            lineterm="",
-        )
-        for line in diff:
-            if line.startswith("+") and not line.startswith("+++"):
-                console.print(f"[green]{line}[/green]")
-            elif line.startswith("-") and not line.startswith("---"):
-                console.print(f"[red]{line}[/red]")
-            elif line.startswith("@@"):
-                console.print(f"[cyan]{line}[/cyan]")
-            else:
-                console.print(f"[dim]{line}[/dim]")
-
-
 def _print_file_changes(changes: list, dry_run: bool, verb: str) -> None:
     assert changes is not None, "Changes must not be None"
     assert verb in ["update", "create"], "Verb must be 'update' or 'create'"
@@ -236,7 +210,7 @@ def _print_file_changes(changes: list, dry_run: bool, verb: str) -> None:
         console.print(f"  {icon} {change.path}")
 
 
-def _upgrade_single(path: Path, dry_run: bool, show_diff: bool) -> None:
+def _upgrade_single(path: Path, dry_run: bool) -> None:
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
@@ -253,9 +227,6 @@ def _upgrade_single(path: Path, dry_run: bool, show_diff: bool) -> None:
     if not changes:
         console.print("[green]✓ Project is already up to date![/green]")
         return
-    if show_diff:
-        _render_change_diffs(changes)
-        console.print()
     if not dry_run:
         apply_changes(path, changes)
         ensure_prek_hooks(path)
@@ -461,7 +432,6 @@ def check(
 def upgrade(
     path: Path = typer.Option(Path.cwd(), help="Project path to upgrade"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
-    diff: bool = typer.Option(False, "--diff", "-D", help="Show a unified diff of each change"),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="Upgrade all projects in directory tree"
     ),
@@ -471,8 +441,8 @@ def upgrade(
 ) -> None:
     """Upgrade project infrastructure files to latest standards.
 
-    Refreshes scaffold-managed files in place. Use --diff to review changes
-    before they land, or --dry-run to preview without writing.
+    Refreshes scaffold-managed files in place. Use --dry-run to preview which
+    files change first; review the applied changes with 'git diff'.
     """
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
@@ -480,14 +450,13 @@ def upgrade(
     if recursive:
         _upgrade_recursive(path, dry_run, max_depth)
     else:
-        _upgrade_single(path, dry_run, diff)
+        _upgrade_single(path, dry_run)
 
 
 @app.command()
 def adopt(
     path: Path = typer.Option(Path.cwd(), help="Repository path to adopt"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
-    diff: bool = typer.Option(False, "--diff", "-D", help="Show a unified diff of each new file"),
 ) -> None:
     """Bring an existing repository up to scaffold standards.
 
@@ -511,9 +480,6 @@ def adopt(
     if not changes:
         console.print("[green]✓ Repository already has all standard files![/green]")
         return
-    if diff:
-        _render_change_diffs(changes)
-        console.print()
     if not dry_run:
         apply_changes(path, changes)
         ensure_prek_hooks(path)
