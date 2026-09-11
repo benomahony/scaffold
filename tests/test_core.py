@@ -4,7 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from scaffold.core import check_project, find_python_projects, preview_project, upgrade_project
+from scaffold.core import (
+    adopt_project,
+    check_project,
+    find_python_projects,
+    plan_adopt,
+    plan_upgrade,
+    preview_project,
+    upgrade_project,
+)
 from scaffold.models import ProjectConfig, ProjectType
 
 pytestmark = pytest.mark.unit
@@ -169,6 +177,62 @@ def test_upgrade_project_only_reports_changed_files(tmp_path: Path) -> None:
     assert len(first_run) > 0, "First run must report updated files"
     assert second_run is not None, "Second run must return a list"
     assert len(second_run) == 0, "Second run must report no changes (content identical)"
+
+
+def test_plan_upgrade_reports_file_changes(tmp_path: Path) -> None:
+    """Test plan_upgrade returns FileChange objects with substituted paths."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "my-project"\nrequires-python = ">=3.12"\n'
+        'authors = [{name = "Test"}]\ndescription = "Test"\n'
+    )
+
+    changes = plan_upgrade(tmp_path)
+
+    assert changes is not None, "Changes must not be None"
+    assert len(changes) > 0, "Must report changes for a fresh project"
+    paths = [change.path for change in changes]
+    assert ".pre-commit-config.yaml" in paths, "Must include pre-commit config"
+    assert any("my_project" in path for path in paths), "Must substitute package name"
+    assert all(change.action == "create" for change in changes), "All files must be new"
+
+
+def test_plan_adopt_never_clobbers_existing_files(tmp_path: Path) -> None:
+    """Test plan_adopt skips files that already exist."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    repo = tmp_path / "legacy-repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("keep me\n")
+
+    changes = plan_adopt(repo)
+
+    assert changes is not None, "Changes must not be None"
+    paths = [change.path for change in changes]
+    assert "pyproject.toml" in paths, "Must create missing pyproject.toml"
+    assert "README.md" not in paths, "Must not touch existing README.md"
+    assert (repo / "README.md").read_text() == "keep me\n", "Existing file must be untouched"
+
+
+def test_adopt_project_creates_missing_standard_files(tmp_path: Path) -> None:
+    """Test adopt_project writes missing files derived from directory name."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    repo = tmp_path / "myrepo"
+    repo.mkdir()
+
+    created = adopt_project(repo)
+
+    assert created is not None, "Created list must not be None"
+    assert "pyproject.toml" in created, "Must create pyproject.toml"
+    assert (repo / "pyproject.toml").exists(), "pyproject.toml must exist on disk"
+    assert (repo / ".pre-commit-config.yaml").exists(), "pre-commit config must exist"
+    assert (repo / "src" / "myrepo" / "__init__.py").exists(), "Package init must exist"
 
 
 def test_find_python_projects_excludes_venv(tmp_path: Path) -> None:

@@ -16,6 +16,8 @@
 ```bash
 sc upgrade
 sc upgrade --dry-run   # preview changes without writing
+sc upgrade --diff      # review a unified diff of every change
+sc upgrade --diff --dry-run
 ```
 
 ## All projects in a tree

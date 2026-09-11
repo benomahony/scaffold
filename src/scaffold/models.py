@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -50,3 +51,10 @@ class ProjectConfig(BaseModel):
         package = self.name.replace("-", "_")
         assert package.isidentifier(), "Package name must be valid Python identifier"
         return package
+
+
+class FileChange(BaseModel):
+    path: str
+    action: Literal["create", "modify"]
+    old_content: str
+    new_content: str

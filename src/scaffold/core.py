@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from scaffold.models import ProjectConfig
+from scaffold.models import FileChange, ProjectConfig
 from scaffold.storage import CommandResult, ResultStorage
 from scaffold.template_engine import TemplateEngine
 
@@ -193,14 +193,32 @@ def _load_project_metadata(project_path: Path) -> dict[str, str]:
     }
 
 
-def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
-    assert project_path is not None, "Project path must not be None"
-    assert project_path.exists(), "Project path must exist"
+_MANAGED_TEMPLATES = [
+    ("base/.pre-commit-config.yaml.j2", ".pre-commit-config.yaml"),
+    ("base/llms.txt.j2", "llms.txt"),
+    ("base/zensical.toml.j2", "zensical.toml"),
+    ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
+    ("python/mcp_server.py.j2", "src/{package_name}/mcp_server.py"),
+    ("python/SKILL.md.j2", ".skills/{package_name}/SKILL.md"),
+]
 
-    metadata = _load_project_metadata(project_path)
+_ADOPT_TEMPLATES = [
+    ("base/pyproject.toml.j2", "pyproject.toml"),
+    ("base/.gitignore.j2", ".gitignore"),
+    ("base/.python-version.j2", ".python-version"),
+    ("base/README.md.j2", "README.md"),
+    ("base/__init__.py.j2", "src/{package_name}/__init__.py"),
+    *_MANAGED_TEMPLATES,
+]
 
-    engine = TemplateEngine()
-    context = {
+_ADOPT_EMPTY_FILES = ["src/{package_name}/py.typed", "tests/__init__.py"]
+
+
+def _render_context(metadata: dict[str, str]) -> dict:
+    assert metadata is not None, "Metadata must not be None"
+    assert "package_name" in metadata, "Metadata must include package_name"
+
+    return {
         **metadata,
         "email": None,
         "license": "MIT",
@@ -208,42 +226,125 @@ def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
         "project_type": "python",
     }
 
+
+def plan_upgrade(project_path: Path) -> list[FileChange]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    metadata = _load_project_metadata(project_path)
+    engine = TemplateEngine()
+    context = _render_context(metadata)
     package_name = metadata["package_name"]
-    files_to_upgrade = [
-        ("base/.pre-commit-config.yaml.j2", ".pre-commit-config.yaml"),
-        ("base/llms.txt.j2", "llms.txt"),
-        ("base/zensical.toml.j2", "zensical.toml"),
-        ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
-        ("python/mcp_server.py.j2", f"src/{package_name}/mcp_server.py"),
-        ("python/SKILL.md.j2", f".skills/{package_name}/SKILL.md"),
-    ]
 
-    updated_files = []
-
-    for template_path, output_file in files_to_upgrade:
-        output_path = project_path / output_file
-        content = engine.render_template(template_path, context)
-
-        if output_path.exists() and output_path.read_text() == content:
+    changes: list[FileChange] = []
+    for template_path, output_file in _MANAGED_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        target = project_path / target_rel
+        new_content = engine.render_template(template_path, context)
+        old_content = target.read_text() if target.exists() else ""
+        if old_content == new_content:
             continue
-
-        if not dry_run:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(content)
-
-        updated_files.append(output_file)
-
-    if not dry_run:
-        precommit_hook = project_path / ".git" / "hooks" / "pre-commit"
-        if not precommit_hook.exists():
-            subprocess.run(
-                ["uv", "run", "prek", "install"],
-                cwd=project_path,
-                check=True,
-                capture_output=True,
+        action = "modify" if target.exists() else "create"
+        changes.append(
+            FileChange(
+                path=target_rel, action=action, old_content=old_content, new_content=new_content
             )
+        )
+    return changes
 
-    return updated_files
+
+def apply_changes(project_path: Path, changes: list[FileChange]) -> None:
+    assert project_path is not None, "Project path must not be None"
+    assert changes is not None, "Changes must not be None"
+
+    for change in changes:
+        target = project_path / change.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(change.new_content)
+
+
+def ensure_prek_hooks(project_path: Path) -> None:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    git_dir = project_path / ".git"
+    precommit_hook = git_dir / "hooks" / "pre-commit"
+    if git_dir.exists() and not precommit_hook.exists():
+        subprocess.run(
+            ["uv", "run", "prek", "install"],
+            cwd=project_path,
+            check=True,
+            capture_output=True,
+        )
+
+
+def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    changes = plan_upgrade(project_path)
+    if not dry_run:
+        apply_changes(project_path, changes)
+        ensure_prek_hooks(project_path)
+    return [change.path for change in changes]
+
+
+def _derive_metadata(project_path: Path) -> dict[str, str]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    if (project_path / "pyproject.toml").exists():
+        return _load_project_metadata(project_path)
+
+    raw_name = project_path.resolve().name
+    project_name = raw_name.lower().replace(" ", "-").replace("_", "-")
+    package_name = project_name.replace("-", "_")
+    assert package_name.isidentifier(), f"Cannot derive a package name from '{raw_name}'"
+    return {
+        "project_name": project_name,
+        "package_name": package_name,
+        "author": "Unknown",
+        "description": f"Python project: {project_name}",
+        "python_version": "3.12",
+    }
+
+
+def plan_adopt(project_path: Path) -> list[FileChange]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    metadata = _derive_metadata(project_path)
+    engine = TemplateEngine()
+    context = _render_context(metadata)
+    package_name = metadata["package_name"]
+
+    changes: list[FileChange] = []
+    for template_path, output_file in _ADOPT_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        if (project_path / target_rel).exists():
+            continue
+        content = engine.render_template(template_path, context)
+        changes.append(
+            FileChange(path=target_rel, action="create", old_content="", new_content=content)
+        )
+
+    for empty_file in _ADOPT_EMPTY_FILES:
+        target_rel = empty_file.format(package_name=package_name)
+        if (project_path / target_rel).exists():
+            continue
+        changes.append(FileChange(path=target_rel, action="create", old_content="", new_content=""))
+    return changes
+
+
+def adopt_project(project_path: Path, dry_run: bool = False) -> list[str]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    changes = plan_adopt(project_path)
+    if not dry_run:
+        apply_changes(project_path, changes)
+        ensure_prek_hooks(project_path)
+    return [change.path for change in changes]
 
 
 _SKIP_DIRS = {".venv", "venv", "node_modules", "__pycache__", "build", "dist", ".tox"}

@@ -14,17 +14,18 @@ from scaffold.storage import ResultStorage
 __version__ = "0.1.0"
 
 app = typer.Typer(
-    help="""Scaffold new Python projects with opinionated defaults.
+    help="""Keep Python repos current with opinionated tooling.
 
 Examples:
-  sc init my-project                    Create new project
-  sc init my-project --dry-run          Preview before creating
   sc check                              Check project health
-  sc upgrade                            Update infrastructure files
+  sc check -r                           Check every repo in a tree
+  sc upgrade                            Refresh infrastructure files
+  sc upgrade --diff                     Preview changes as a diff
+  sc adopt                              Bring an existing repo up to standard
+  sc test -r                            Run pytest across all repos
+  sc prek -r                            Run prek across all repos
   sc list                               List all Python projects
-  sc test -r                            Run pytest on all repos
-  sc prek -r                            Run prek on all repos
-  sc status                             Show test results for current dir
+  sc init my-project                    Create a new project from scratch
 """,
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -191,36 +192,79 @@ def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
         console.print("\n[green]Upgrade complete![/green]")
 
 
-def _upgrade_single(path: Path, dry_run: bool) -> None:
+def _render_change_diffs(changes: list) -> None:
+    assert changes is not None, "Changes must not be None"
+    assert len(changes) > 0, "Changes must not be empty"
+
+    import difflib
+
+    for change in changes:
+        console.print(f"\n[bold cyan]{change.path}[/bold cyan] [dim]({change.action})[/dim]")
+        diff = difflib.unified_diff(
+            change.old_content.splitlines(),
+            change.new_content.splitlines(),
+            fromfile=f"a/{change.path}",
+            tofile=f"b/{change.path}",
+            lineterm="",
+        )
+        for line in diff:
+            if line.startswith("+") and not line.startswith("+++"):
+                console.print(f"[green]{line}[/green]")
+            elif line.startswith("-") and not line.startswith("---"):
+                console.print(f"[red]{line}[/red]")
+            elif line.startswith("@@"):
+                console.print(f"[cyan]{line}[/cyan]")
+            else:
+                console.print(f"[dim]{line}[/dim]")
+
+
+def _print_file_changes(changes: list, dry_run: bool, verb: str) -> None:
+    assert changes is not None, "Changes must not be None"
+    assert verb in ["update", "create"], "Verb must be 'update' or 'create'"
+
+    past = "updated" if verb == "update" else "created"
+    would = "Would update" if verb == "update" else "Would create"
+    header = (
+        f"[yellow]{would} {len(changes)} file(s):[/yellow]\n"
+        if dry_run
+        else f"[green]{past.capitalize()} {len(changes)} file(s):[/green]\n"
+    )
+    console.print(header)
+    mark = "[green]✓[/green]" if verb == "update" else "[green]+[/green]"
+    for change in changes:
+        icon = "[yellow]~[/yellow]" if dry_run else mark
+        console.print(f"  {icon} {change.path}")
+
+
+def _upgrade_single(path: Path, dry_run: bool, show_diff: bool) -> None:
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from scaffold.core import upgrade_project
+    from scaffold.core import apply_changes, ensure_prek_hooks, plan_upgrade
 
     console.print(f"[bold]Upgrading project at:[/bold] {path}\n")
     if dry_run:
         console.print("[yellow]Dry run mode - no files will be modified[/yellow]\n")
     try:
-        changes = upgrade_project(path, dry_run=dry_run)
-        if not changes:
-            console.print("[green]✓ Project is already up to date![/green]")
-            return
-        label = (
-            f"[yellow]Would update {len(changes)} file(s):[/yellow]\n"
-            if dry_run
-            else f"[green]Updated {len(changes)} file(s):[/green]\n"
-        )
-        console.print(label)
-        for file in changes:
-            console.print(f"  {'[yellow]~[/yellow]' if dry_run else '[green]✓[/green]'} {file}")
-        console.print(
-            "\n[dim]Run without --dry-run to apply changes[/dim]"
-            if dry_run
-            else "\n[green]Upgrade complete![/green]"
-        )
+        changes = plan_upgrade(path)
     except Exception as e:
         console.print(f"[red]✗ Upgrade failed: {e}[/red]")
         raise
+    if not changes:
+        console.print("[green]✓ Project is already up to date![/green]")
+        return
+    if show_diff:
+        _render_change_diffs(changes)
+        console.print()
+    if not dry_run:
+        apply_changes(path, changes)
+        ensure_prek_hooks(path)
+    _print_file_changes(changes, dry_run, "update")
+    console.print(
+        "\n[dim]Run without --dry-run to apply changes[/dim]"
+        if dry_run
+        else "\n[green]Upgrade complete![/green]"
+    )
 
 
 def _execute_bulk(
@@ -319,7 +363,7 @@ def main(
         False, "--version", "-v", callback=version_callback, is_eager=True, help="Show version"
     ),
 ) -> None:
-    """Scaffold CLI - Create Python projects with opinionated defaults."""
+    """Scaffold CLI - Keep Python repos current with opinionated tooling."""
     assert app is not None, "Typer app must be initialized"
     assert _version is None or isinstance(_version, bool), "Version must be None or boolean"
 
@@ -417,6 +461,7 @@ def check(
 def upgrade(
     path: Path = typer.Option(Path.cwd(), help="Project path to upgrade"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
+    diff: bool = typer.Option(False, "--diff", "-D", help="Show a unified diff of each change"),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="Upgrade all projects in directory tree"
     ),
@@ -424,14 +469,60 @@ def upgrade(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Upgrade project infrastructure files to latest standards."""
+    """Upgrade project infrastructure files to latest standards.
+
+    Refreshes scaffold-managed files in place. Use --diff to review changes
+    before they land, or --dry-run to preview without writing.
+    """
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
     if recursive:
         _upgrade_recursive(path, dry_run, max_depth)
     else:
-        _upgrade_single(path, dry_run)
+        _upgrade_single(path, dry_run, diff)
+
+
+@app.command()
+def adopt(
+    path: Path = typer.Option(Path.cwd(), help="Repository path to adopt"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
+    diff: bool = typer.Option(False, "--diff", "-D", help="Show a unified diff of each new file"),
+) -> None:
+    """Bring an existing repository up to scaffold standards.
+
+    Adds missing infrastructure and standard files without overwriting
+    anything that already exists. Works even if the repo was not created by
+    scaffold. Run 'sc upgrade' afterwards to keep managed files current.
+    """
+    assert path is not None, "Path must not be None"
+    assert path.exists(), f"Path {path} does not exist"
+
+    from scaffold.core import apply_changes, ensure_prek_hooks, plan_adopt
+
+    console.print(f"[bold]Adopting repository at:[/bold] {path}\n")
+    if dry_run:
+        console.print("[yellow]Dry run mode - no files will be written[/yellow]\n")
+    try:
+        changes = plan_adopt(path)
+    except Exception as e:
+        console.print(f"[red]✗ Adopt failed: {e}[/red]")
+        raise
+    if not changes:
+        console.print("[green]✓ Repository already has all standard files![/green]")
+        return
+    if diff:
+        _render_change_diffs(changes)
+        console.print()
+    if not dry_run:
+        apply_changes(path, changes)
+        ensure_prek_hooks(path)
+    _print_file_changes(changes, dry_run, "create")
+    if dry_run:
+        console.print("\n[dim]Run without --dry-run to write files[/dim]")
+    else:
+        console.print("\n[green]Adopt complete![/green]")
+        console.print("[dim]Run 'uv sync', then 'sc upgrade' as needed.[/dim]")
 
 
 @app.command()

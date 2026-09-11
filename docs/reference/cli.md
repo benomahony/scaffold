@@ -43,8 +43,23 @@ sc upgrade [OPTIONS]
 |---|---|---|---|
 | `--path` | PATH | cwd | Project path |
 | `--dry-run` | FLAG | off | Preview changes |
+| `--diff, -D` | FLAG | off | Show a unified diff of each change |
 | `--recursive, -r` | FLAG | off | Upgrade all projects in tree |
 | `--max-depth` | INT | 3 | Directory depth limit |
+
+## sc adopt
+
+Bring an existing repository up to scaffold standards. Adds missing files without overwriting anything that already exists, even if the repo was not created by scaffold.
+
+```
+sc adopt [OPTIONS]
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--path` | PATH | cwd | Repository path |
+| `--dry-run` | FLAG | off | Preview without writing |
+| `--diff, -D` | FLAG | off | Show a unified diff of each new file |
 
 ## sc test
 
