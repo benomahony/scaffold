@@ -103,6 +103,13 @@ repos:
         files: ^src/scaffold/.*\.py$
         pass_filenames: false
         require_serial: true
+      - id: testdesiderata
+        name: testdesiderata
+        entry: uv run --frozen testdesiderata tests
+        language: system
+        files: ^tests/.*\.py$
+        pass_filenames: false
+        require_serial: true
       - id: deptry
         name: deptry
         entry: uv run --frozen deptry . --extend-exclude "\.venv|tests"

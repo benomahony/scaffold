@@ -8,6 +8,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_scaffold_python_project(tmp_path: Path) -> None:
+    """Init builds a complete project, installs it, and reports success."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -72,6 +73,7 @@ def test_scaffold_python_project(tmp_path: Path) -> None:
 
 
 def test_scaffold_python_project_with_docs(tmp_path: Path) -> None:
+    """Init wires up the environment, git, and pre-commit hooks."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -117,6 +119,7 @@ def test_scaffold_python_project_with_docs(tmp_path: Path) -> None:
 
 
 def test_scaffold_check_command(tmp_path: Path) -> None:
+    """Check reports a freshly scaffolded project as healthy."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -161,6 +164,7 @@ def test_scaffold_check_command(tmp_path: Path) -> None:
 
 
 def test_scaffold_upgrade_command(tmp_path: Path) -> None:
+    """Upgrade rewrites a stale managed file back to the template."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -448,7 +452,7 @@ def test_upgrade_recursive_dry_run(tmp_path: Path) -> None:
         assert (
             project_name.replace("-", "_") in upgrade_result.stdout
             or project_name in upgrade_result.stdout
-        )
+        ), "Dry-run output must mention the project"
 
         current_content = precommit_file.read_text()
         assert current_content == old_content, "Dry-run must not modify files"

@@ -93,6 +93,13 @@ repos:
         files: ^src/{{ package_name }}/.*\.py$
         pass_filenames: false
         require_serial: true
+      - id: testdesiderata
+        name: testdesiderata
+        entry: uv run testdesiderata tests
+        language: system
+        files: ^tests/.*\.py$
+        pass_filenames: false
+        require_serial: true
       - id: deptry
         name: deptry
         entry: uv run deptry . --extend-exclude "\.venv|tests"

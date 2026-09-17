@@ -30,6 +30,7 @@ dev = [
     "mkdocstrings-python>=1.0.0",
     "prek>=0.5.2",
     "dddlint>=0.1.11",
+    "testdesiderata>=0.1.2",
 ]
 
 [project.scripts]
@@ -71,5 +72,11 @@ extend_exclude = ["tests"]
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["scaffold"]
-DEP002 = ["pytest", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "dddlint", "mkdocstrings-python"]
+DEP002 = ["pytest", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "dddlint", "testdesiderata", "mkdocstrings-python"]
 DEP003 = ["scaffold"]
+
+[tool.testdesiderata]
+# This suite is deliberately integration-heavy: it drives the real CLI over
+# subprocesses and the filesystem, so it trades away isolation, determinism,
+# speed, and small size on purpose. Enforce the rest.
+ignore = ["ISO", "DET", "FST", "CMP"]

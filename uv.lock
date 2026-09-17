@@ -3227,6 +3227,7 @@ dev = [
     { name = "pytest-testmon" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "testdesiderata" },
     { name = "vulture" },
 ]
 
@@ -3247,6 +3248,7 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3.0" },
+    { name = "testdesiderata", marker = "extra == 'dev'", specifier = ">=0.1.2" },
     { name = "typer", specifier = ">=0.12.0" },
     { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.11" },
 ]
@@ -3362,6 +3364,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036, upload-time = "2025-04-02T08:25:09.966Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248, upload-time = "2025-04-02T08:25:07.678Z" },
+]
+
+[[package]]
+name = "testdesiderata"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "rich" },
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9f/b0/9d0bdb009f5807ab985462fd84aa9fe89cf65f5c59115fc85343c693985e/testdesiderata-0.1.2.tar.gz", hash = "sha256:c9025e1c8deaed1a4953afbcee2417e30c3497aaa19421e991aec805b5f49aee", size = 201155, upload-time = "2026-09-10T15:15:37.839Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/a6/37140b0b8e39ddd7fb76ea7873cc3c624a167339efcb217ba9688cc68cb0/testdesiderata-0.1.2-py3-none-any.whl", hash = "sha256:0b7e01cf54e96f513fb9fc5bf3b6cdf52ed2ff752864bc1ff3d22ac72f7c0205", size = 24154, upload-time = "2026-09-10T15:15:36.602Z" },
 ]
 
 [[package]]
