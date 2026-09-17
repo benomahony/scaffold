@@ -29,6 +29,7 @@ class TemplateEngine:
         with_llms: bool = False,
         with_mcp: bool = False,
         with_skill: bool = False,
+        with_auto_update: bool = False,
     ) -> list[tuple[str, str]]:
         assert project_type is not None, "Project type must not be None"
         assert project_type == ProjectType.PYTHON, "Only PYTHON type supported"
@@ -56,6 +57,13 @@ class TemplateEngine:
             templates.append(("python/mcp_server.py.j2", "src/__package_name__/mcp_server.py"))
         if with_skill:
             templates.append(("python/SKILL.md.j2", ".skills/__package_name__/SKILL.md"))
+        if with_auto_update:
+            templates.append(
+                (
+                    "base/.github_workflows_scaffold-update.yml.j2",
+                    ".github/workflows/scaffold-update.yml",
+                )
+            )
 
         assert len(templates) > 0, "Must have at least one template"
         return templates

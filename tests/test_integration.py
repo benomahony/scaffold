@@ -542,14 +542,16 @@ def test_ai_extras_opt_in(tmp_path: Path) -> None:
         assert "llms.txt" not in default.stdout, "llms.txt must be off by default"
         assert "mcp_server.py" not in default.stdout, "MCP server must be off by default"
         assert "SKILL.md" not in default.stdout, "Agent Skill must be off by default"
+        assert "scaffold-update.yml" not in default.stdout, "Auto-update must be off by default"
 
         enabled = subprocess.run(
-            [*base, "--llms", "--mcp", "--skill"], capture_output=True, text=True
+            [*base, "--llms", "--mcp", "--skill", "--auto-update"], capture_output=True, text=True
         )
         assert enabled.returncode == 0, f"Flagged dry-run must succeed: {enabled.stderr}"
         assert "llms.txt" in enabled.stdout, "--llms must add llms.txt"
         assert "mcp_server.py" in enabled.stdout, "--mcp must add the MCP server"
         assert "SKILL.md" in enabled.stdout, "--skill must add the Agent Skill"
+        assert "scaffold-update.yml" in enabled.stdout, "--auto-update must add the update workflow"
 
     finally:
         os.chdir(original_cwd)

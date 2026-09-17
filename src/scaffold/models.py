@@ -29,6 +29,7 @@ class ProjectConfig(BaseModel):
     with_llms: bool = False
     with_mcp: bool = False
     with_skill: bool = False
+    with_auto_update: bool = False
 
     @field_validator("name")
     @classmethod

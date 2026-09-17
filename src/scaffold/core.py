@@ -24,6 +24,7 @@ def preview_project(config: ProjectConfig, output_path: Path) -> list[str]:
         with_llms=config.with_llms,
         with_mcp=config.with_mcp,
         with_skill=config.with_skill,
+        with_auto_update=config.with_auto_update,
     )
     empty_files = engine.get_empty_files()
 
@@ -76,6 +77,7 @@ def render_and_write_templates(
         "with_llms": config.with_llms,
         "with_mcp": config.with_mcp,
         "with_skill": config.with_skill,
+        "with_auto_update": config.with_auto_update,
     }
 
     templates = engine.get_template_files(
@@ -83,6 +85,7 @@ def render_and_write_templates(
         with_llms=config.with_llms,
         with_mcp=config.with_mcp,
         with_skill=config.with_skill,
+        with_auto_update=config.with_auto_update,
     )
     assert len(templates) > 0, "Must have templates to render"
 
@@ -220,6 +223,7 @@ _OPTIONAL_TEMPLATES = [
     ("base/llms.txt.j2", "llms.txt"),
     ("python/mcp_server.py.j2", "src/{package_name}/mcp_server.py"),
     ("python/SKILL.md.j2", ".skills/{package_name}/SKILL.md"),
+    ("base/.github_workflows_scaffold-update.yml.j2", ".github/workflows/scaffold-update.yml"),
 ]
 
 _ADOPT_TEMPLATES = [
@@ -248,6 +252,7 @@ def _render_context(metadata: dict[str, str]) -> dict:
         "with_llms": False,
         "with_mcp": False,
         "with_skill": False,
+        "with_auto_update": False,
     }
 
 

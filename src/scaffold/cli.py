@@ -71,6 +71,7 @@ def _build_init_config(
     with_llms: bool,
     with_mcp: bool,
     with_skill: bool,
+    with_auto_update: bool,
 ) -> ProjectConfig:
     assert project_name, "Project name must be provided"
     assert python_version, "Python version must be provided"
@@ -97,6 +98,7 @@ def _build_init_config(
         with_llms=with_llms,
         with_mcp=with_mcp,
         with_skill=with_skill,
+        with_auto_update=with_auto_update,
     )
 
 
@@ -390,6 +392,9 @@ def init(
     with_llms: bool = typer.Option(False, "--llms", help="Include an llms.txt file"),
     with_mcp: bool = typer.Option(False, "--mcp", help="Include an MCP server"),
     with_skill: bool = typer.Option(False, "--skill", help="Include a Claude Code Agent Skill"),
+    auto_update: bool = typer.Option(
+        False, "--auto-update", help="Include a workflow that PRs scaffold updates on a schedule"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without creating"),
 ) -> None:
     """Create a new Python project with everything configured.
@@ -397,8 +402,8 @@ def init(
     Automatically sets up dependencies, pre-commit hooks, tests, and git.
     Opens your editor when ready - no manual setup required!
 
-    The llms.txt, MCP server, and Agent Skill extras are opt-in via --llms,
-    --mcp, and --skill.
+    The llms.txt, MCP server, Agent Skill, and scheduled scaffold-update
+    workflow are opt-in via --llms, --mcp, --skill, and --auto-update.
     """
     assert project_name, "Project name must be provided"
     assert python_version, "Python version must be provided"
@@ -413,6 +418,7 @@ def init(
         with_llms=with_llms,
         with_mcp=with_mcp,
         with_skill=with_skill,
+        with_auto_update=auto_update,
     )
     output_path = Path.cwd() / project_name
 

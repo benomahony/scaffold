@@ -15,11 +15,13 @@ Created if missing, never overwritten (you own its contents):
 - `dddlint.yaml`
 
 Refreshed only if the project already has them (the opt-in extras from
-`sc init --llms/--mcp/--skill`), never added to a project that opted out:
+`sc init --llms/--mcp/--skill/--auto-update`), never added to a project that
+opted out:
 
 - `llms.txt`
 - `src/<package>/mcp_server.py`
 - `.skills/<package>/SKILL.md`
+- `.github/workflows/scaffold-update.yml`
 
 ## Single project
 

@@ -40,12 +40,18 @@ anything that already exists. Follow it with `uv sync` and `sc upgrade`.
 sc init my-project
 sc init my-project --dry-run
 sc init my-project --llms --mcp --skill   # opt into the AI extras
+sc init my-project --auto-update          # PR scaffold updates on a schedule
 ```
 
 Every project scaffold manages ships with uv, ruff, basedpyright, pytest with
 unit and integration markers, prek hooks, a `src/` layout, GitHub Actions CI,
-and docs. An `llms.txt`, an MCP server, and a Claude Code Agent Skill are opt-in
-via `--llms`, `--mcp`, and `--skill`.
+and docs. An `llms.txt`, an MCP server, a Claude Code Agent Skill, and a
+scheduled `scaffold-update` workflow are opt-in via `--llms`, `--mcp`,
+`--skill`, and `--auto-update`.
+
+With `--auto-update`, a weekly GitHub Action runs `scaffold upgrade` against the
+latest scaffold and opens a PR when your infrastructure files have drifted, so
+your projects stay current as scaffold evolves.
 
 ## Development
 

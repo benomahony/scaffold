@@ -18,6 +18,7 @@ sc init PROJECT_NAME [OPTIONS]
 | `--llms` | FLAG | off | Include an llms.txt file |
 | `--mcp` | FLAG | off | Include an MCP server |
 | `--skill` | FLAG | off | Include a Claude Code Agent Skill |
+| `--auto-update` | FLAG | off | Include a scheduled workflow that PRs scaffold updates |
 | `--dry-run` | FLAG | off | Preview only |
 
 ## sc check
