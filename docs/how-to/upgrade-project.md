@@ -4,10 +4,16 @@
 
 ## Files upgraded
 
+Always refreshed:
+
 - `.pre-commit-config.yaml`
-- `llms.txt`
 - `zensical.toml`
 - `.github/workflows/ci.yml`
+
+Refreshed only if the project already has them (the opt-in extras from
+`sc init --llms/--mcp/--skill`), never added to a project that opted out:
+
+- `llms.txt`
 - `src/<package>/mcp_server.py`
 - `.skills/<package>/SKILL.md`
 

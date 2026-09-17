@@ -31,9 +31,11 @@ dev = [
     "bump-my-version>=0.28.0",
     "zensical>=0.0.10",
 ]
+{% if with_mcp %}
 mcp = [
     "mcp>=1.2.0",
 ]
+{% endif %}
 
 [project.scripts]
 {{ package_name }} = "{{ package_name }}.cli:app"
@@ -72,7 +74,9 @@ markers = [
 
 [tool.coverage.run]
 branch = true
+{% if with_mcp %}
 omit = ["*/mcp_server.py"]
+{% endif %}
 
 [tool.coverage.report]
 exclude_lines = [
@@ -95,7 +99,7 @@ extend_exclude = ["tests"]
 [tool.deptry.per_rule_ignores]
 DEP001 = ["{{ package_name }}"]
 DEP002 = ["pytest", "pytest-cov", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "bump-my-version", "zensical"]
-DEP003 = ["{{ package_name }}", "mcp"]
+DEP003 = ["{{ package_name }}"{% if with_mcp %}, "mcp"{% endif %}]
 
 [tool.bumpversion]
 current_version = "0.1.0"

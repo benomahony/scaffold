@@ -57,11 +57,13 @@ uv sync
 # Run tests
 uv run pytest
 
-# Run pre-commit hooks
-uv run pre-commit run --all-files
+# Run pre-commit hooks (via prek)
+uv run prek run --all-files
 ```
+{% if with_mcp or with_skill %}
 
 ## AI Integration
+{% if with_mcp %}
 
 ### MCP Server
 
@@ -76,6 +78,8 @@ uv sync --extra mcp
 # Add MCP server to Claude Code
 claude mcp add {{ package_name }} --transport stdio uv run --with mcp python src/{{ package_name }}/mcp_server.py
 ```
+{% endif %}
+{% if with_skill %}
 
 ### Agent Skill
 
@@ -89,3 +93,5 @@ claude skill add .skills/{{ package_name }}
 ```
 
 The skill helps Claude understand and work with this project more effectively.
+{% endif %}
+{% endif %}

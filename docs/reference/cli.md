@@ -15,6 +15,9 @@ sc init PROJECT_NAME [OPTIONS]
 | `--description, -d` | TEXT | auto | Project description |
 | `--python, -p` | TEXT | `3.12` | Python version |
 | `--no-git` | FLAG | off | Skip git init |
+| `--llms` | FLAG | off | Include an llms.txt file |
+| `--mcp` | FLAG | off | Include an MCP server |
+| `--skill` | FLAG | off | Include a Claude Code Agent Skill |
 | `--dry-run` | FLAG | off | Preview only |
 
 ## sc check

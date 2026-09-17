@@ -347,12 +347,18 @@ def init(
     description: str | None = typer.Option(None, "--description", "-d", help="Project description"),
     python_version: str = typer.Option("3.12", "--python", "-p", help="Python version"),
     no_git_init: bool = typer.Option(False, "--no-git", help="Skip git initialization"),
+    with_llms: bool = typer.Option(False, "--llms", help="Include an llms.txt file"),
+    with_mcp: bool = typer.Option(False, "--mcp", help="Include an MCP server"),
+    with_skill: bool = typer.Option(False, "--skill", help="Include a Claude Code Agent Skill"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without creating"),
 ) -> None:
     """Create a new Python project with everything configured.
 
     Automatically sets up dependencies, pre-commit hooks, tests, and git.
     Opens your editor when ready - no manual setup required!
+
+    The llms.txt, MCP server, and Agent Skill extras are opt-in via --llms,
+    --mcp, and --skill.
     """
     assert project_name is not None, "Project name must be provided"
     assert isinstance(dry_run, bool), "Dry run must be boolean"
@@ -383,6 +389,9 @@ def init(
         description=description,
         python_version=python_version,
         git_init=not no_git_init,
+        with_llms=with_llms,
+        with_mcp=with_mcp,
+        with_skill=with_skill,
     )
     output_path = Path.cwd() / project_name
 

@@ -49,7 +49,6 @@ def test_scaffold_python_project(tmp_path: Path) -> None:
         assert (project_path / ".github" / "workflows" / "ci.yml").exists(), (
             "GitHub Actions workflow must exist"
         )
-        assert (project_path / "llms.txt").exists(), "llms.txt must exist"
         assert (project_path / "zensical.toml").exists(), "zensical.toml must exist"
         assert (project_path / "src").exists(), "src directory must exist"
         assert (project_path / "tests").exists(), "tests directory must exist"
@@ -60,11 +59,12 @@ def test_scaffold_python_project(tmp_path: Path) -> None:
         )
 
         package_name = project_name.replace("-", "_")
-        assert (project_path / "src" / package_name / "mcp_server.py").exists(), (
-            "MCP server must exist"
+        assert not (project_path / "llms.txt").exists(), "llms.txt must be opt-in"
+        assert not (project_path / "src" / package_name / "mcp_server.py").exists(), (
+            "MCP server must be opt-in"
         )
-        assert (project_path / ".skills" / package_name / "SKILL.md").exists(), (
-            "Agent Skill must exist"
+        assert not (project_path / ".skills" / package_name / "SKILL.md").exists(), (
+            "Agent Skill must be opt-in"
         )
 
     finally:
@@ -522,90 +522,30 @@ def test_recursive_max_depth(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_ai_integration_files(tmp_path: Path) -> None:
-    """Test that AI integration files (llms.txt, MCP, skills) are valid."""
+def test_ai_extras_opt_in(tmp_path: Path) -> None:
+    """Test llms/mcp/skill extras are off by default and enabled by flags."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
-    project_name = "test-ai-integration"
+    base = ["uv", "run", "scaffold", "init", "extras-demo", "-a", "Test", "-d", "Demo", "--dry-run"]
     original_cwd = Path.cwd()
 
     try:
         os.chdir(tmp_path)
 
-        result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                project_name,
-                "--author",
-                "Test Author",
-                "--description",
-                "Test AI integration",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
+        default = subprocess.run(base, capture_output=True, text=True)
+        assert default.returncode == 0, f"Default dry-run must succeed: {default.stderr}"
+        assert "llms.txt" not in default.stdout, "llms.txt must be off by default"
+        assert "mcp_server.py" not in default.stdout, "MCP server must be off by default"
+        assert "SKILL.md" not in default.stdout, "Agent Skill must be off by default"
+
+        enabled = subprocess.run(
+            [*base, "--llms", "--mcp", "--skill"], capture_output=True, text=True
         )
-
-        assert result.returncode == 0, f"Scaffold command must succeed. Error:\n{result.stderr}"
-
-        project_path = tmp_path / project_name
-        package_name = project_name.replace("-", "_")
-
-        llms_txt = project_path / "llms.txt"
-        assert llms_txt.exists(), "llms.txt must exist"
-        llms_content = llms_txt.read_text()
-        assert llms_content.startswith("# test-ai-integration"), (
-            "llms.txt must start with H1 project name"
-        )
-        assert "> Test AI integration" in llms_content, "llms.txt must have description blockquote"
-        assert "## Documentation" in llms_content, "llms.txt must have Documentation section"
-        assert "## AI Integration" in llms_content, "llms.txt must have AI Integration section"
-
-        zensical_toml = project_path / "zensical.toml"
-        assert zensical_toml.exists(), "zensical.toml must exist"
-        zensical_content = zensical_toml.read_text()
-        assert "[project]" in zensical_content, "zensical.toml must have [project] section"
-        assert 'site_name = "test-ai-integration"' in zensical_content, (
-            "zensical.toml must have site_name"
-        )
-        assert "[project.theme]" in zensical_content, "zensical.toml must have theme section"
-
-        mcp_server = project_path / "src" / package_name / "mcp_server.py"
-        assert mcp_server.exists(), "MCP server must exist"
-        mcp_content = mcp_server.read_text()
-        assert "from mcp.server import Server" in mcp_content, "MCP server must import Server"
-        assert "async def list_resources()" in mcp_content, "MCP server must have list_resources"
-        assert "async def read_resource(" in mcp_content, "MCP server must have read_resource"
-
-        skill_md = project_path / ".skills" / package_name / "SKILL.md"
-        assert skill_md.exists(), "SKILL.md must exist"
-        skill_content = skill_md.read_text()
-        assert skill_content.startswith("---\n"), "SKILL.md must start with YAML frontmatter"
-        assert "name: test-ai-integration" in skill_content, (
-            "SKILL.md must have name in frontmatter"
-        )
-        assert "description:" in skill_content, "SKILL.md must have description in frontmatter"
-        assert "# test-ai-integration Skill" in skill_content, "SKILL.md must have H1 heading"
-
-        workflow = project_path / ".github" / "workflows" / "ci.yml"
-        assert workflow.exists(), "GitHub Actions workflow must exist"
-        workflow_content = workflow.read_text()
-        assert "name: CI and Publish" in workflow_content, "Workflow must have name"
-        assert "jobs:" in workflow_content, "Workflow must have jobs"
-        assert "test:" in workflow_content, "Workflow must have test job"
-        assert "publish:" in workflow_content, "Workflow must have publish job"
-        assert "docs:" in workflow_content, "Workflow must have docs job"
-        assert "uv run zensical build" in workflow_content, "Docs job must build with zensical"
-
-        pyproject = project_path / "pyproject.toml"
-        pyproject_content = pyproject.read_text()
-        assert "zensical>=" in pyproject_content, "pyproject.toml must have zensical in dev deps"
-        assert "mcp>=" in pyproject_content, "pyproject.toml must have mcp optional dep"
-        assert "bump-my-version>=" in pyproject_content, "pyproject.toml must have bump-my-version"
+        assert enabled.returncode == 0, f"Flagged dry-run must succeed: {enabled.stderr}"
+        assert "llms.txt" in enabled.stdout, "--llms must add llms.txt"
+        assert "mcp_server.py" in enabled.stdout, "--mcp must add the MCP server"
+        assert "SKILL.md" in enabled.stdout, "--skill must add the Agent Skill"
 
     finally:
         os.chdir(original_cwd)

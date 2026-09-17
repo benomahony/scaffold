@@ -40,7 +40,7 @@ hello-world/
 │   └── __init__.py
 ├── pyproject.toml
 ├── .pre-commit-config.yaml
-└── llms.txt
+└── zensical.toml
 ```
 
 ## Check project health

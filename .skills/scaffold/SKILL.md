@@ -46,10 +46,10 @@ result = example_function("World")
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
 - Runs pytest/prek across many repos with `-r` and caches results (`sc status`)
 - Creates new projects with modern tooling (uv, ruff, basedpyright, pytest, prek)
-- Generates GitHub Actions CI, llms.txt, zensical.toml, MCP server, and Agent Skills
+- Generates GitHub Actions CI and zensical.toml docs
+- llms.txt, MCP server, and Agent Skill are opt-in via `sc init --llms/--mcp/--skill`
 
 ## Resources
 
 - Check docs/index.md for comprehensive documentation
-- Check llms.txt for LLM-friendly documentation summary
 - Check src/scaffold/ for implementation details

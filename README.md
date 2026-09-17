@@ -27,9 +27,8 @@ sc status            # show the latest test and prek results
 ```
 
 `sc upgrade` rewrites the files scaffold owns (`.pre-commit-config.yaml`,
-`llms.txt`, `zensical.toml`, CI workflow, MCP server, Agent Skill). Use
-`--dry-run` to preview which files change; since they are tracked in git,
-review the applied changes with `git diff`.
+`zensical.toml`, CI workflow). Use `--dry-run` to preview which files change;
+since they are tracked in git, review the applied changes with `git diff`.
 
 `sc adopt` onboards a repository that was not created by scaffold. It adds any
 missing standard files (including `pyproject.toml`) and never overwrites
@@ -40,11 +39,13 @@ anything that already exists. Follow it with `uv sync` and `sc upgrade`.
 ```bash
 sc init my-project
 sc init my-project --dry-run
+sc init my-project --llms --mcp --skill   # opt into the AI extras
 ```
 
 Every project scaffold manages ships with uv, ruff, basedpyright, pytest with
 unit and integration markers, prek hooks, a `src/` layout, GitHub Actions CI,
-docs, an MCP server, and an Agent Skill.
+and docs. An `llms.txt`, an MCP server, and a Claude Code Agent Skill are opt-in
+via `--llms`, `--mcp`, and `--skill`.
 
 ## Development
 

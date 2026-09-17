@@ -8,12 +8,12 @@ Any of these files that are missing:
 
 - `pyproject.toml` (name derived from the directory when absent)
 - `.pre-commit-config.yaml`, `.gitignore`, `.python-version`
-- `README.md`, `llms.txt`, `zensical.toml`
+- `README.md`, `zensical.toml`
 - `.github/workflows/ci.yml`
 - `src/<package>/__init__.py`, `src/<package>/py.typed`, `tests/__init__.py`
-- `src/<package>/mcp_server.py`, `.skills/<package>/SKILL.md`
 
-Existing files are never touched.
+Adopt stays lean: the opt-in extras (`llms.txt`, MCP server, Agent Skill) are
+not added. Existing files are never touched.
 
 ## Usage
 

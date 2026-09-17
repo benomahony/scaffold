@@ -196,8 +196,26 @@ def test_plan_upgrade_reports_file_changes(tmp_path: Path) -> None:
     assert len(changes) > 0, "Must report changes for a fresh project"
     paths = [change.path for change in changes]
     assert ".pre-commit-config.yaml" in paths, "Must include pre-commit config"
-    assert any("my_project" in path for path in paths), "Must substitute package name"
+    assert "zensical.toml" in paths, "Must include zensical config"
+    assert "llms.txt" not in paths, "Must not force optional llms.txt onto a project"
     assert all(change.action == "create" for change in changes), "All files must be new"
+
+
+def test_plan_upgrade_refreshes_optional_files_only_if_present(tmp_path: Path) -> None:
+    """Test plan_upgrade refreshes an optional file only when it already exists."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "my-project"\nrequires-python = ">=3.12"\n'
+        'authors = [{name = "Test"}]\ndescription = "Test"\n'
+    )
+    (tmp_path / "llms.txt").write_text("stale\n")
+
+    paths = [change.path for change in plan_upgrade(tmp_path)]
+
+    assert "llms.txt" in paths, "Must refresh an existing optional file"
 
 
 def test_plan_adopt_never_clobbers_existing_files(tmp_path: Path) -> None:
@@ -233,6 +251,28 @@ def test_adopt_project_creates_missing_standard_files(tmp_path: Path) -> None:
     assert (repo / "pyproject.toml").exists(), "pyproject.toml must exist on disk"
     assert (repo / ".pre-commit-config.yaml").exists(), "pre-commit config must exist"
     assert (repo / "src" / "myrepo" / "__init__.py").exists(), "Package init must exist"
+
+
+def test_pyproject_template_gates_mcp_dependency() -> None:
+    """Test the pyproject template only includes the mcp extra when requested."""
+    from scaffold.template_engine import TemplateEngine
+
+    engine = TemplateEngine()
+    context = {
+        "project_name": "demo",
+        "package_name": "demo",
+        "author": "Test",
+        "email": None,
+        "description": "Demo",
+        "python_version": "3.12",
+        "license": "MIT",
+    }
+
+    without_mcp = engine.render_template("base/pyproject.toml.j2", {**context, "with_mcp": False})
+    with_mcp = engine.render_template("base/pyproject.toml.j2", {**context, "with_mcp": True})
+
+    assert "mcp>=" not in without_mcp, "Default pyproject must omit the mcp dependency"
+    assert "mcp>=" in with_mcp, "pyproject with --mcp must include the mcp dependency"
 
 
 def test_find_python_projects_excludes_venv(tmp_path: Path) -> None:

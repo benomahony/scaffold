@@ -19,7 +19,12 @@ def preview_project(config: ProjectConfig, output_path: Path) -> list[str]:
     assert output_path.is_absolute(), "Output path must be absolute"
 
     engine = TemplateEngine()
-    templates = engine.get_template_files(config.type)
+    templates = engine.get_template_files(
+        config.type,
+        with_llms=config.with_llms,
+        with_mcp=config.with_mcp,
+        with_skill=config.with_skill,
+    )
     empty_files = engine.get_empty_files()
 
     all_files = []
@@ -68,9 +73,17 @@ def render_and_write_templates(
         "license": config.license,
         "year": datetime.now().year,
         "project_type": config.type.value,
+        "with_llms": config.with_llms,
+        "with_mcp": config.with_mcp,
+        "with_skill": config.with_skill,
     }
 
-    templates = engine.get_template_files(config.type)
+    templates = engine.get_template_files(
+        config.type,
+        with_llms=config.with_llms,
+        with_mcp=config.with_mcp,
+        with_skill=config.with_skill,
+    )
     assert len(templates) > 0, "Must have templates to render"
 
     for template_path, output_file in templates:
@@ -193,11 +206,14 @@ def _load_project_metadata(project_path: Path) -> dict[str, str]:
     }
 
 
-_MANAGED_TEMPLATES = [
+_CORE_TEMPLATES = [
     ("base/.pre-commit-config.yaml.j2", ".pre-commit-config.yaml"),
-    ("base/llms.txt.j2", "llms.txt"),
     ("base/zensical.toml.j2", "zensical.toml"),
     ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
+]
+
+_OPTIONAL_TEMPLATES = [
+    ("base/llms.txt.j2", "llms.txt"),
     ("python/mcp_server.py.j2", "src/{package_name}/mcp_server.py"),
     ("python/SKILL.md.j2", ".skills/{package_name}/SKILL.md"),
 ]
@@ -208,7 +224,7 @@ _ADOPT_TEMPLATES = [
     ("base/.python-version.j2", ".python-version"),
     ("base/README.md.j2", "README.md"),
     ("base/__init__.py.j2", "src/{package_name}/__init__.py"),
-    *_MANAGED_TEMPLATES,
+    *_CORE_TEMPLATES,
 ]
 
 _ADOPT_EMPTY_FILES = ["src/{package_name}/py.typed", "tests/__init__.py"]
@@ -224,7 +240,24 @@ def _render_context(metadata: dict[str, str]) -> dict:
         "license": "MIT",
         "year": datetime.now().year,
         "project_type": "python",
+        "with_llms": False,
+        "with_mcp": False,
+        "with_skill": False,
     }
+
+
+def _plan_change(
+    engine: TemplateEngine, context: dict, project_path: Path, target_rel: str, template_path: str
+) -> FileChange | None:
+    assert target_rel is not None, "Target must not be None"
+    assert template_path is not None, "Template path must not be None"
+
+    target = project_path / target_rel
+    new_content = engine.render_template(template_path, context)
+    if target.exists() and target.read_text() == new_content:
+        return None
+    action = "modify" if target.exists() else "create"
+    return FileChange(path=target_rel, action=action, new_content=new_content)
 
 
 def plan_upgrade(project_path: Path) -> list[FileChange]:
@@ -237,14 +270,19 @@ def plan_upgrade(project_path: Path) -> list[FileChange]:
     package_name = metadata["package_name"]
 
     changes: list[FileChange] = []
-    for template_path, output_file in _MANAGED_TEMPLATES:
+    for template_path, output_file in _CORE_TEMPLATES:
         target_rel = output_file.format(package_name=package_name)
-        target = project_path / target_rel
-        new_content = engine.render_template(template_path, context)
-        if target.exists() and target.read_text() == new_content:
+        change = _plan_change(engine, context, project_path, target_rel, template_path)
+        if change is not None:
+            changes.append(change)
+
+    for template_path, output_file in _OPTIONAL_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        if not (project_path / target_rel).exists():
             continue
-        action = "modify" if target.exists() else "create"
-        changes.append(FileChange(path=target_rel, action=action, new_content=new_content))
+        change = _plan_change(engine, context, project_path, target_rel, template_path)
+        if change is not None:
+            changes.append(change)
     return changes
 
 

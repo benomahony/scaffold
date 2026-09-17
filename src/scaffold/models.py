@@ -26,6 +26,9 @@ class ProjectConfig(BaseModel):
     python_version: str = "3.12"
     license: str = "MIT"
     git_init: bool = True
+    with_llms: bool = False
+    with_mcp: bool = False
+    with_skill: bool = False
 
     @field_validator("name")
     @classmethod
