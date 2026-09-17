@@ -31,6 +31,7 @@ dev = [
     "prek>=0.5.2",
     "dddlint>=0.1.11",
     "testdesiderata>=0.1.2",
+    "pytest-cov>=7.1.0",
 ]
 
 [project.scripts]
@@ -72,7 +73,7 @@ extend_exclude = ["tests"]
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["scaffold"]
-DEP002 = ["pytest", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "dddlint", "testdesiderata", "mkdocstrings-python"]
+DEP002 = ["pytest", "pytest-cov", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "dddlint", "testdesiderata", "mkdocstrings-python"]
 DEP003 = ["scaffold"]
 
 [tool.testdesiderata]
