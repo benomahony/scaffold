@@ -1,0 +1,19 @@
+# https://benomahony.github.io/dddlint/reference/config/
+enforce_canonical: true
+name_uniqueness: true
+
+# terms that must never appear in a definition name
+forbidden: []
+
+# paths to skip, gitignore syntax, relative to this file
+exclude: []
+
+# canonical terms and the aliases that must give way to them
+synonyms: []
+  # - canonical: customer
+  #   aliases: [client, user]
+
+# bounded contexts, each with its own vocabulary
+contexts: []
+  # - name: billing
+  #   include: ["**/billing/**"]

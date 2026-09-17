@@ -39,6 +39,7 @@ class TemplateEngine:
             ("base/.gitignore.j2", ".gitignore"),
             ("base/.python-version.j2", ".python-version"),
             ("base/README.md.j2", "README.md"),
+            ("base/dddlint.yaml.j2", "dddlint.yaml"),
             ("base/zensical.toml.j2", "zensical.toml"),
             ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
             ("base/__init__.py.j2", "src/__package_name__/__init__.py"),

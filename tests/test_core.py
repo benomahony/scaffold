@@ -253,6 +253,41 @@ def test_adopt_project_creates_missing_standard_files(tmp_path: Path) -> None:
     assert (repo / "src" / "myrepo" / "__init__.py").exists(), "Package init must exist"
 
 
+def test_plan_upgrade_ensures_dddlint_config_without_clobbering(tmp_path: Path) -> None:
+    """Test plan_upgrade creates dddlint.yaml when missing but never overwrites it."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "my-project"\nrequires-python = ">=3.12"\n'
+        'authors = [{name = "Test"}]\ndescription = "Test"\n'
+    )
+
+    missing = [change.path for change in plan_upgrade(tmp_path)]
+    assert "dddlint.yaml" in missing, "Must create dddlint.yaml when absent"
+
+    (tmp_path / "dddlint.yaml").write_text("forbidden: [foo]\n")
+    present = [change.path for change in plan_upgrade(tmp_path)]
+    assert "dddlint.yaml" not in present, "Must never overwrite an existing dddlint.yaml"
+    assert (tmp_path / "dddlint.yaml").read_text() == "forbidden: [foo]\n", "Config untouched"
+
+
+def test_precommit_template_pins_and_includes_dddlint() -> None:
+    """Test the pre-commit template ships current hook pins and the dddlint hook."""
+    from scaffold.template_engine import TemplateEngine
+
+    rendered = TemplateEngine().render_template(
+        "base/.pre-commit-config.yaml.j2", {"package_name": "demo"}
+    )
+
+    assert "id: dddlint" in rendered, "Must include the dddlint hook"
+    assert "dddlint lint src/demo" in rendered, "dddlint hook must lint the package"
+    assert "rev: v0.49.1" in rendered, "markdownlint-cli must be pinned to the current release"
+    assert "rev: v4.18.1" in rendered, "commitizen must be pinned to the current release"
+    assert "rev: v0.1.14" in rendered, "nasa-lsp must be pinned to the current release"
+
+
 def test_pyproject_template_gates_mcp_dependency() -> None:
     """Test the pyproject template only includes the mcp extra when requested."""
     from scaffold.template_engine import TemplateEngine

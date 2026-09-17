@@ -28,6 +28,7 @@ dev = [
     "bandit>=1.7.0",
     "deptry>=0.12.0",
     "cliqa>=0.1.0",
+    "dddlint>=0.1.11",
     "bump-my-version>=0.28.0",
     "zensical>=0.0.10",
 ]
@@ -98,7 +99,7 @@ extend_exclude = ["tests"]
 
 [tool.deptry.per_rule_ignores]
 DEP001 = ["{{ package_name }}"]
-DEP002 = ["pytest", "pytest-cov", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "bump-my-version", "zensical"]
+DEP002 = ["pytest", "pytest-cov", "pytest-examples", "pytest-xdist", "pytest-testmon", "ruff", "basedpyright", "prek", "vulture", "bandit", "deptry", "cliqa", "dddlint", "bump-my-version", "zensical"]
 DEP003 = ["{{ package_name }}"{% if with_mcp %}, "mcp"{% endif %}]
 
 [tool.bumpversion]

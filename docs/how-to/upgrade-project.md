@@ -10,6 +10,10 @@ Always refreshed:
 - `zensical.toml`
 - `.github/workflows/ci.yml`
 
+Created if missing, never overwritten (you own its contents):
+
+- `dddlint.yaml`
+
 Refreshed only if the project already has them (the opt-in extras from
 `sc init --llms/--mcp/--skill`), never added to a project that opted out:
 

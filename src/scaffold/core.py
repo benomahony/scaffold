@@ -212,6 +212,10 @@ _CORE_TEMPLATES = [
     ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
 ]
 
+_ENSURE_TEMPLATES = [
+    ("base/dddlint.yaml.j2", "dddlint.yaml"),
+]
+
 _OPTIONAL_TEMPLATES = [
     ("base/llms.txt.j2", "llms.txt"),
     ("python/mcp_server.py.j2", "src/{package_name}/mcp_server.py"),
@@ -225,6 +229,7 @@ _ADOPT_TEMPLATES = [
     ("base/README.md.j2", "README.md"),
     ("base/__init__.py.j2", "src/{package_name}/__init__.py"),
     *_CORE_TEMPLATES,
+    *_ENSURE_TEMPLATES,
 ]
 
 _ADOPT_EMPTY_FILES = ["src/{package_name}/py.typed", "tests/__init__.py"]
@@ -272,6 +277,14 @@ def plan_upgrade(project_path: Path) -> list[FileChange]:
     changes: list[FileChange] = []
     for template_path, output_file in _CORE_TEMPLATES:
         target_rel = output_file.format(package_name=package_name)
+        change = _plan_change(engine, context, project_path, target_rel, template_path)
+        if change is not None:
+            changes.append(change)
+
+    for template_path, output_file in _ENSURE_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        if (project_path / target_rel).exists():
+            continue
         change = _plan_change(engine, context, project_path, target_rel, template_path)
         if change is not None:
             changes.append(change)

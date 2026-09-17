@@ -8,7 +8,7 @@ Any of these files that are missing:
 
 - `pyproject.toml` (name derived from the directory when absent)
 - `.pre-commit-config.yaml`, `.gitignore`, `.python-version`
-- `README.md`, `zensical.toml`
+- `README.md`, `zensical.toml`, `dddlint.yaml`
 - `.github/workflows/ci.yml`
 - `src/<package>/__init__.py`, `src/<package>/py.typed`, `tests/__init__.py`
 
