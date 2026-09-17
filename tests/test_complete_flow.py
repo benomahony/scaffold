@@ -270,7 +270,6 @@ def test_complete_manual_workflow(tmp_path: Path) -> None:
             "tests/test_cli.py",
             "tests/test_core.py",
             "README.md",
-            "llms.txt",
             "zensical.toml",
         ]
 
