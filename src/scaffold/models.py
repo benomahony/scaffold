@@ -13,7 +13,7 @@ class ProjectType(str, Enum):
             ProjectType.PYTHON: "Python project (CLI + library + docs + tests)",
         }
         assert self in descriptions, "Project type must have a description"
-        assert isinstance(descriptions[self], str), "Description must be a string"
+        assert descriptions[self], "Description must not be empty"
         return descriptions[self]
 
 
@@ -33,7 +33,7 @@ class ProjectConfig(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        assert v is not None and len(v) > 0, "Name must not be empty"
+        assert v, "Name must not be empty"
         normalized = v.lower().replace(" ", "-")
         package_name = normalized.replace("-", "_")
         assert package_name.isidentifier(), "Name must be convertible to valid Python identifier"

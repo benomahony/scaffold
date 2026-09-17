@@ -34,8 +34,8 @@ console = Console()
 
 
 def version_callback(value: bool) -> None:
-    assert isinstance(value, bool), "Value must be boolean"
-    assert __version__ is not None, "Version must be defined"
+    assert __version__, "Version must be defined"
+    assert "." in __version__, "Version must be dotted"
 
     if value:
         console.print(f"sc version {__version__}")
@@ -58,6 +58,46 @@ def _get_git_config(key: str) -> str | None:
     except FileNotFoundError:
         pass
     return None
+
+
+def _build_init_config(
+    project_name: str,
+    author: str | None,
+    email: str | None,
+    description: str | None,
+    python_version: str,
+    no_git_init: bool,
+    *,
+    with_llms: bool,
+    with_mcp: bool,
+    with_skill: bool,
+) -> ProjectConfig:
+    assert project_name, "Project name must be provided"
+    assert python_version, "Python version must be provided"
+
+    package_name = project_name.replace("-", "_")
+    reserved_names = {"test", "tests", "src", "lib", "data", "docs", "setup", "build", "dist"}
+    if package_name in reserved_names:
+        console.print(
+            f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]"
+        )
+        console.print(
+            f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    return ProjectConfig(
+        name=project_name,
+        type=ProjectType.PYTHON,
+        author=author if author is not None else (_get_git_config("user.name") or "Unknown"),
+        email=email if email is not None else _get_git_config("user.email"),
+        description=description if description is not None else f"Python project: {project_name}",
+        python_version=python_version,
+        git_init=not no_git_init,
+        with_llms=with_llms,
+        with_mcp=with_mcp,
+        with_skill=with_skill,
+    )
 
 
 def _show_init_dry_run(config: ProjectConfig, output_path: Path, project_name: str) -> None:
@@ -310,7 +350,7 @@ def _print_bulk_summary(
 
 def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool) -> None:
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert path is not None and path.exists(), "Path must exist"
+    assert path.exists(), "Path must exist"
 
     from scaffold.core import find_python_projects
 
@@ -336,7 +376,7 @@ def main(
 ) -> None:
     """Scaffold CLI - Keep Python repos current with opinionated tooling."""
     assert app is not None, "Typer app must be initialized"
-    assert _version is None or isinstance(_version, bool), "Version must be None or boolean"
+    assert app.registered_commands, "App must expose commands"
 
 
 @app.command()
@@ -360,35 +400,16 @@ def init(
     The llms.txt, MCP server, and Agent Skill extras are opt-in via --llms,
     --mcp, and --skill.
     """
-    assert project_name is not None, "Project name must be provided"
-    assert isinstance(dry_run, bool), "Dry run must be boolean"
+    assert project_name, "Project name must be provided"
+    assert python_version, "Python version must be provided"
 
-    package_name = project_name.replace("-", "_")
-    reserved_names = {"test", "tests", "src", "lib", "data", "docs", "setup", "build", "dist"}
-    if package_name in reserved_names:
-        console.print(
-            f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]"
-        )
-        console.print(
-            f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]"
-        )
-        raise typer.Exit(1)
-
-    if author is None:
-        author = _get_git_config("user.name") or "Unknown"
-    if email is None:
-        email = _get_git_config("user.email")
-    if description is None:
-        description = f"Python project: {project_name}"
-
-    config = ProjectConfig(
-        name=project_name,
-        type=ProjectType.PYTHON,
-        author=author,
-        email=email,
-        description=description,
-        python_version=python_version,
-        git_init=not no_git_init,
+    config = _build_init_config(
+        project_name,
+        author,
+        email,
+        description,
+        python_version,
+        no_git_init,
         with_llms=with_llms,
         with_mcp=with_mcp,
         with_skill=with_skill,
@@ -639,8 +660,8 @@ def status(
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed output"),
 ) -> None:
     """Display test/prek results for projects in current directory."""
-    assert command is None or command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert isinstance(detailed, bool), "Detailed must be boolean"
+    assert command in [None, "pytest", "prek"], "Command must be pytest, prek, or unset"
+    assert path.exists(), "Path must exist"
 
     from scaffold.core import find_python_projects
 

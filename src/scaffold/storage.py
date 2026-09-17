@@ -18,19 +18,15 @@ class CommandResult(BaseModel):
 
 class ResultStorage:
     def __init__(self, storage_dir: Path | None = None) -> None:
-        assert storage_dir is None or isinstance(storage_dir, Path), (
-            "Storage dir must be Path or None"
-        )
-
         self.storage_dir = storage_dir or Path.home() / ".scaffold"
         self.status_file = self.storage_dir / "repo_status.jsonl"
 
-        assert isinstance(self.storage_dir, Path), "Storage dir must be Path"
-        assert isinstance(self.status_file, Path), "Status file must be Path"
+        assert self.status_file.name == "repo_status.jsonl", "Status file must be the results log"
+        assert self.status_file.parent == self.storage_dir, "Status file must live in storage dir"
 
     def save_result(self, result: CommandResult) -> None:
-        assert result is not None, "Result must not be None"
-        assert isinstance(result, CommandResult), "Result must be CommandResult instance"
+        assert result.repo_path, "Result must carry a repo path"
+        assert result.command in ("pytest", "prek"), "Result command must be pytest or prek"
 
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -43,8 +39,8 @@ class ResultStorage:
         repo_path: str | None = None,
         limit: int | None = None,
     ) -> list[CommandResult]:
-        assert command is None or isinstance(command, str), "Command must be str or None"
-        assert repo_path is None or isinstance(repo_path, str), "Repo path must be str or None"
+        assert command in (None, "pytest", "prek"), "Command filter must be a known command"
+        assert self.status_file.suffix == ".jsonl", "Results log must be a jsonl file"
 
         if not self.status_file.exists():
             return []
@@ -71,8 +67,8 @@ class ResultStorage:
         return results
 
     def get_latest_by_repo(self, command: str) -> dict[str, CommandResult]:
-        assert command is not None, "Command must not be None"
-        assert isinstance(command, str), "Command must be string"
+        assert command, "Command must not be empty"
+        assert command in ("pytest", "prek"), "Command must be pytest or prek"
 
         results = self.load_results(command=command)
 

@@ -493,16 +493,17 @@ def _get_clean_env() -> dict[str, str]:
     assert os.environ is not None, "os.environ must be available"
 
     env = os.environ.copy()
-    assert isinstance(env, dict), "Environment must be a dictionary"
     env.pop("VIRTUAL_ENV", None)
     env.pop("CONDA_PREFIX", None)
+    assert "VIRTUAL_ENV" not in env, "VIRTUAL_ENV must be stripped"
+    assert "CONDA_PREFIX" not in env, "CONDA_PREFIX must be stripped"
     return env
 
 
 def _execute_command(cmd: list[str], repo_path: Path, timeout: int) -> tuple[int, float, str, str]:
     """Execute command and return exit code, duration, stdout, stderr."""
-    assert cmd is not None and len(cmd) > 0, "Command must not be empty"
-    assert repo_path is not None, "Repo path must not be None"
+    assert cmd, "Command must not be empty"
+    assert timeout > 0, "Timeout must be positive"
 
     env = _get_clean_env()
     start_time = time.time()

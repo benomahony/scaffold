@@ -16,8 +16,8 @@ class TemplateEngine:
         assert self.env.loader is not None, "Jinja loader must be configured"
 
     def render_template(self, template_path: str, context: dict) -> str:
-        assert template_path is not None, "Template path must not be None"
-        assert isinstance(context, dict), "Context must be a dictionary"
+        assert template_path, "Template path must not be empty"
+        assert template_path.endswith(".j2"), "Template path must be a Jinja template"
 
         template = self.env.get_template(template_path)
         return template.render(**context)
