@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import time
 from datetime import datetime
@@ -569,3 +570,61 @@ def _run_command_on_repo(
         stderr=stderr,
         git_commit=git_commit,
     )
+
+
+_HOOK_REPO_PATTERN = r"^\s*- repo:\s*(\S+)\s*$"
+_HOOK_REV_PATTERN = r"^(\s*rev:\s*)(\S+)(.*)$"
+
+_LIVE_PRECOMMIT = Path(".pre-commit-config.yaml")
+_TEMPLATE_PRECOMMIT = Path("src/scaffold/templates/base/.pre-commit-config.yaml.j2")
+
+
+def _load_hook_revs(text: str) -> dict[str, str]:
+    assert text, "Config text must not be empty"
+    assert "repo:" in text, "Config must define at least one repo"
+
+    revs: dict[str, str] = {}
+    repo: str | None = None
+    for line in text.splitlines():
+        repo_match = re.match(_HOOK_REPO_PATTERN, line)
+        if repo_match:
+            repo = repo_match.group(1)
+            continue
+        rev_match = re.match(_HOOK_REV_PATTERN, line)
+        if rev_match and repo is not None and repo != "local":
+            revs[repo] = rev_match.group(2)
+            repo = None
+    return revs
+
+
+def _apply_hook_revs(text: str, revs: dict[str, str]) -> str:
+    assert text, "Template text must not be empty"
+    assert revs, "Must have at least one revision to apply"
+
+    out: list[str] = []
+    repo: str | None = None
+    for line in text.splitlines(keepends=True):
+        repo_match = re.match(_HOOK_REPO_PATTERN, line)
+        if repo_match:
+            repo = repo_match.group(1)
+        rev_match = re.match(_HOOK_REV_PATTERN, line)
+        if rev_match and repo in revs:
+            line = f"{rev_match.group(1)}{revs[repo]}{rev_match.group(3)}\n"
+            repo = None
+        out.append(line)
+    return "".join(out)
+
+
+def sync_hook_pins(config_path: Path | None = None, template_path: Path | None = None) -> bool:
+    config = config_path or _LIVE_PRECOMMIT
+    template = template_path or _TEMPLATE_PRECOMMIT
+    assert config.exists(), "Live .pre-commit-config.yaml must exist"
+    assert template.exists(), "Template .pre-commit-config.yaml.j2 must exist"
+
+    revs = _load_hook_revs(config.read_text())
+    original = template.read_text()
+    updated = _apply_hook_revs(original, revs)
+    if updated == original:
+        return False
+    template.write_text(updated)
+    return True

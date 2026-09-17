@@ -11,6 +11,7 @@ from scaffold.core import (
     plan_adopt,
     plan_upgrade,
     preview_project,
+    sync_hook_pins,
     upgrade_project,
 )
 from scaffold.models import ProjectConfig, ProjectType
@@ -308,6 +309,32 @@ def test_pyproject_template_gates_mcp_dependency() -> None:
 
     assert "mcp>=" not in without_mcp, "Default pyproject must omit the mcp dependency"
     assert "mcp>=" in with_mcp, "pyproject with --mcp must include the mcp dependency"
+
+
+def test_sync_hook_pins_copies_revs_into_template(tmp_path: Path) -> None:
+    """Test sync_hook_pins mirrors remote hook revs from the live config."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    config = tmp_path / ".pre-commit-config.yaml"
+    config.write_text(
+        "repos:\n"
+        "  - repo: https://github.com/x/y\n"
+        "    rev: v2.0.0\n"
+        "    hooks: []\n"
+        "  - repo: local\n"
+        "    hooks: []\n"
+    )
+    template = tmp_path / "template.j2"
+    template.write_text(
+        "repos:\n  - repo: https://github.com/x/y\n    rev: v1.0.0\n    hooks: []\n"
+    )
+
+    changed = sync_hook_pins(config, template)
+
+    assert changed is True, "Must report a change when a rev is stale"
+    assert "rev: v2.0.0" in template.read_text(), "Template rev must be bumped"
+    assert sync_hook_pins(config, template) is False, "Second run must be a no-op"
 
 
 def test_find_python_projects_excludes_venv(tmp_path: Path) -> None:

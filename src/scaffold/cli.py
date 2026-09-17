@@ -527,6 +527,26 @@ def adopt(
         console.print("[dim]Run 'uv sync', then 'sc upgrade' as needed.[/dim]")
 
 
+@app.command(name="sync-hook-pins", hidden=True)
+def sync_hook_pins_command() -> None:
+    """Copy pinned hook revisions from .pre-commit-config.yaml into the template.
+
+    Maintenance command for the scaffold repo itself: run after 'prek update'
+    so 'sc upgrade' distributes the refreshed pins. Run from the repo root.
+    """
+    from scaffold.core import sync_hook_pins
+
+    config = Path(".pre-commit-config.yaml")
+    template = Path("src/scaffold/templates/base/.pre-commit-config.yaml.j2")
+    assert config.exists(), "Run this from a repo with a .pre-commit-config.yaml"
+    assert template.exists(), "Run this from the scaffold repo root"
+
+    if sync_hook_pins(config, template):
+        console.print("[green]✓ Synced hook pins into the template[/green]")
+    else:
+        console.print("[green]✓ Template hook pins already current[/green]")
+
+
 @app.command()
 def test(
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),

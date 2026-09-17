@@ -27,7 +27,7 @@ jobs:
       - name: Bump hook pins
         run: |
           uv run prek update
-          uv run python scripts/sync_hook_pins.py
+          uv run scaffold sync-hook-pins
 
       - name: Open or update PR
         env:
