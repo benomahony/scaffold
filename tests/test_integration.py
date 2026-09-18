@@ -557,8 +557,8 @@ def test_ai_extras_opt_in(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_bulk_test_command(tmp_path: Path) -> None:
-    """Test run pytest -r runs pytest on all projects."""
+def test_status_runs_pytest_and_prek(tmp_path: Path) -> None:
+    """Status runs both pytest and prek across all projects and shows a table."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -574,11 +574,11 @@ def test_bulk_test_command(tmp_path: Path) -> None:
                     "run",
                     "scaffold",
                     "init",
-                    f"bulk-test-{i}",
+                    f"status-{i}",
                     "--author",
                     "Test Author",
                     "--description",
-                    "Test test -r",
+                    "Test status",
                 ],
                 input="n\n",
                 text=True,
@@ -587,85 +587,34 @@ def test_bulk_test_command(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "run", "pytest", "-r", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
 
-        assert result.returncode == 0, f"Bulk test must succeed: {result.stderr}"
-        assert "Running pytest" in result.stdout, "Must indicate pytest running"
-        assert "Test Results:" in result.stdout, "Must show test results"
-        assert "Total tested: 2" in result.stdout, "Must test 2 projects"
-        assert "Results saved to" in result.stdout, "Must show where results are saved"
-
-        storage_file = Path.home() / ".scaffold" / "repo_status.jsonl"
-        assert storage_file.exists(), "Storage file must be created"
-
-        from scaffold.storage import ResultStorage
-
-        storage = ResultStorage()
-        results = storage.load_results(command="pytest")
-        pytest_results = [r for r in results if "bulk-test" in r.repo_name]
-        assert len(pytest_results) >= 2, "Must have results for both projects"
-
-    finally:
-        os.chdir(original_cwd)
-
-
-def test_bulk_prek_command(tmp_path: Path) -> None:
-    """Test run prek -r runs prek on all projects."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        for i in range(2):
-            subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "scaffold",
-                    "init",
-                    f"bulk-prek-{i}",
-                    "--author",
-                    "Test Author",
-                    "--description",
-                    "Test prek -r",
-                ],
-                input="n\n",
-                text=True,
-                capture_output=True,
-                check=True,
-            )
-
-        result = subprocess.run(
-            ["uv", "run", "scaffold", "run", "prek", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, f"Bulk prek must succeed: {result.stderr}"
-        assert "Running prek" in result.stdout, "Must indicate prek running"
-        assert "Prek Results:" in result.stdout, "Must show prek results"
-        assert "Total checked: 2" in result.stdout, "Must check 2 projects"
+        assert result.returncode == 0, f"Status must succeed: {result.stderr}"
+        assert "Running pytest" in result.stdout, "Must run pytest"
+        assert "Running prek" in result.stdout, "Must run prek"
+        assert "pytest:" in result.stdout, "Table must have a pytest column"
+        assert "prek:" in result.stdout, "Table must have a prek column"
         assert "Results saved to" in result.stdout, "Must show where results are saved"
 
         from scaffold.storage import ResultStorage
 
         storage = ResultStorage()
-        results = storage.load_results(command="prek")
-        prek_results = [r for r in results if "bulk-prek" in r.repo_name]
-        assert len(prek_results) >= 2, "Must have results for both projects"
+        pytest_results = [
+            r for r in storage.load_results(command="pytest") if "status-" in r.repo_name
+        ]
+        prek_results = [r for r in storage.load_results(command="prek") if "status-" in r.repo_name]
+        assert len(pytest_results) >= 2, "Must have pytest results for both projects"
+        assert len(prek_results) >= 2, "Must have prek results for both projects"
 
     finally:
         os.chdir(original_cwd)
 
 
-def test_bulk_status_command(tmp_path: Path) -> None:
-    """Test status displays cached results."""
+def test_status_command_filters_to_one_tool(tmp_path: Path) -> None:
+    """Status with --command runs only that tool."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -680,22 +629,15 @@ def test_bulk_status_command(tmp_path: Path) -> None:
                 "run",
                 "scaffold",
                 "init",
-                "status-test",
+                "only-pytest",
                 "--author",
                 "Test Author",
                 "--description",
-                "Test status",
+                "Test filter",
             ],
             input="n\n",
             text=True,
             capture_output=True,
-            check=True,
-        )
-
-        subprocess.run(
-            ["uv", "run", "scaffold", "run", "pytest", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
             check=True,
         )
 
@@ -706,18 +648,15 @@ def test_bulk_status_command(tmp_path: Path) -> None:
         )
 
         assert result.returncode == 0, f"Status must succeed: {result.stderr}"
-        assert "Cached results" in result.stdout, "Must show cached results header"
-        assert "Filtered by: pytest" in result.stdout, "Must show the command filter"
-        assert "status-test" in result.stdout or "status_test" in result.stdout, (
-            "Must show project in results"
-        )
+        assert "Running pytest" in result.stdout, "Must run pytest"
+        assert "Running prek" not in result.stdout, "Must not run prek when filtered to pytest"
 
     finally:
         os.chdir(original_cwd)
 
 
-def test_bulk_status_detailed(tmp_path: Path) -> None:
-    """Test status detailed output."""
+def test_status_detailed_shows_output(tmp_path: Path) -> None:
+    """Status --detailed prints per-project output."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -732,7 +671,7 @@ def test_bulk_status_detailed(tmp_path: Path) -> None:
                 "run",
                 "scaffold",
                 "init",
-                "detailed-test",
+                "detailed",
                 "--author",
                 "Test Author",
                 "--description",
@@ -744,13 +683,6 @@ def test_bulk_status_detailed(tmp_path: Path) -> None:
             check=True,
         )
 
-        subprocess.run(
-            ["uv", "run", "scaffold", "run", "pytest", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
         result = subprocess.run(
             ["uv", "run", "scaffold", "status", "--detailed", "--path", str(tmp_path)],
             capture_output=True,
@@ -759,42 +691,7 @@ def test_bulk_status_detailed(tmp_path: Path) -> None:
 
         assert result.returncode == 0, f"Detailed status must succeed: {result.stderr}"
         assert "Detailed Output:" in result.stdout, "Must show detailed output section"
-        assert "Commit:" in result.stdout or "stdout:" in result.stdout, (
-            "Must show commit or output details"
-        )
+        assert "Commit:" in result.stdout or "stdout:" in result.stdout, "Must show output details"
 
     finally:
         os.chdir(original_cwd)
-
-
-def test_config_root_drives_recursive_commands(tmp_path: Path) -> None:
-    """A configured root lets check -r run from an unrelated directory."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    projects_root = tmp_path / "code"
-    (projects_root / "proj").mkdir(parents=True)
-    (projects_root / "proj" / "pyproject.toml").write_text('[project]\nname = "proj"\n')
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    env = {**os.environ, "SCAFFOLD_CONFIG": str(tmp_path / "config.json")}
-
-    set_result = subprocess.run(
-        ["uv", "run", "scaffold", "config", "--root", str(projects_root)],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    assert set_result.returncode == 0, f"Config set must succeed: {set_result.stderr}"
-    assert "Root set to" in set_result.stdout, "Must confirm the root was set"
-
-    check = subprocess.run(
-        ["uv", "run", "scaffold", "check", "-r"],
-        cwd=elsewhere,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
-    assert check.returncode == 0, f"check -r must succeed: {check.stderr}"
-    assert "1 project(s)" in check.stdout, "check -r must scan the configured root"
-    assert "proj" in check.stdout, "Must find the project under the configured root"

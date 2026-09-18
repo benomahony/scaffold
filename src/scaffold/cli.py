@@ -24,9 +24,7 @@ Examples:
   sc upgrade                            Refresh infrastructure files
   sc upgrade --dry-run                  Preview which files change
   sc adopt                              Bring an existing repo up to standard
-  sc run pytest -r                      Run pytest across all repos
-  sc run prek -r                        Run prek across all repos
-  sc status                             Show the last cached results
+  sc status                             Run pytest + prek across repos, show status
   sc init my-project                    Create a new project from scratch
 """,
     no_args_is_help=True,
@@ -323,53 +321,19 @@ def _execute_bulk(
     return results, cached_count, passed_count, failed_count
 
 
-def _print_bulk_summary(
-    command: str,
-    results: list,
-    storage: ResultStorage,
-    cached_count: int,
-    passed_count: int,
-    failed_count: int,
-) -> None:
-    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert results is not None, "Results must not be None"
+def _collect_status(projects: list, commands: list, storage: ResultStorage, force: bool) -> list:
+    assert projects, "Projects must not be empty"
+    assert commands, "Commands must not be empty"
 
-    label = "Test" if command == "pytest" else "Prek"
-    total_label = "tested" if command == "pytest" else "checked"
-    console.print(f"\n[bold]{label} Results:[/bold]")
-    console.print(f"  Total {total_label}: {len(results)}")
-    if cached_count > 0:
-        console.print(f"  [dim]📦 Cached: {cached_count} (unchanged since last run)[/dim]")
-    console.print(f"  [green]✓[/green] Passed: {passed_count}")
-    if failed_count > 0:
-        console.print(f"  [red]✗[/red] Failed: {failed_count}\n")
-        console.print("[bold]Failed repositories:[/bold]")
-        for result in results:
-            if result.exit_code != 0:
-                console.print(f"  [red]✗[/red] {result.repo_name} (exit {result.exit_code})")
-    else:
-        console.print()
-    console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
-
-
-def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool) -> None:
-    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert path.exists(), "Path must exist"
-
-    from scaffold.core import find_python_projects
-
-    console.print(f"[bold]Running {command} on all projects in:[/bold] {path}\n")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-    projects = find_python_projects(path, max_depth)
-    if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-    storage = ResultStorage()
-    cached_results_map = storage.get_latest_by_repo(command) if not force else {}
-    results, cached_count, passed_count, failed_count = _execute_bulk(
-        command, projects, storage, cached_results_map, force
-    )
-    _print_bulk_summary(command, results, storage, cached_count, passed_count, failed_count)
+    results: list = []
+    for command in commands:
+        console.print(f"[bold]Running {command}...[/bold]")
+        cached_map = storage.get_latest_by_repo(command) if not force else {}
+        command_results, _cached, _passed, _failed = _execute_bulk(
+            command, projects, storage, cached_map, force
+        )
+        results.extend(command_results)
+    return results
 
 
 @app.callback()
@@ -548,8 +512,8 @@ def config(
 ) -> None:
     """Show or set scaffold config (with no options, prints the current config).
 
-    Set a default projects root so 'sc check -r', 'sc run -r', and 'sc status'
-    work from anywhere without cd-ing into your code directory.
+    Set a default projects root so 'sc check -r' and 'sc status' work from
+    anywhere without cd-ing into your code directory.
     """
     from scaffold.config import load_config, save_config
 
@@ -589,41 +553,6 @@ def sync_hook_pins_command() -> None:
         console.print("[green]✓ Synced hook pins into the template[/green]")
     else:
         console.print("[green]✓ Template hook pins already current[/green]")
-
-
-_RUN_COMMANDS = {
-    "pytest": ["uv", "run", "pytest"],
-    "prek": ["uv", "run", "prek", "run", "--all-files"],
-}
-
-
-@app.command()
-def run(
-    tool: str = typer.Argument(..., help="Tool to run: pytest or prek"),
-    recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
-    force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
-    path: Path | None = typer.Option(None, help="Search root (cwd, or config root with -r)"),
-    max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum directory depth for recursive search"
-    ),
-) -> None:
-    """Run pytest or prek on the current project, or all projects with -r.
-
-    Results are cached; view them with 'sc status'.
-    """
-    path = resolve_root(path, use_config=recursive)
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
-
-    if tool not in _RUN_COMMANDS:
-        console.print(f"[red]✗ Unknown tool '{tool}'. Use 'pytest' or 'prek'.[/red]")
-        raise typer.Exit(1)
-    if not recursive:
-        console.print(f"[bold]Running {tool} on current project...[/bold]\n")
-        result = subprocess.run(_RUN_COMMANDS[tool], check=False)
-        raise typer.Exit(result.returncode)
-
-    _run_bulk_interactive(tool, path, max_depth, force)
 
 
 def _print_results_by_repo(results: list) -> None:
@@ -692,39 +621,39 @@ def _print_detailed_results(results: list) -> None:
 
 @app.command()
 def status(
-    command: str | None = typer.Option(None, "--command", help="Filter by pytest or prek"),
-    path: Path | None = typer.Option(None, help="Repos dir (config root or cwd)"),
+    command: str | None = typer.Option(
+        None, "--command", help="Only pytest or prek (default: both)"
+    ),
+    force: bool = typer.Option(False, "--force", "-f", help="Re-run, ignore cache"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show full output"),
+    path: Path | None = typer.Option(None, help="Repos dir (config root or cwd)"),
+    max_depth: int = typer.Option(3, "--max-depth", help="Maximum directory depth for search"),
 ) -> None:
-    """Show cached pytest/prek results for projects in a directory."""
+    """Run pytest and prek across your projects (cached) and show their status.
+
+    Searches the configured root (see 'sc config') or the current directory.
+    Results are cached by file mtime; use --force to re-run everything.
+    """
     assert command in [None, "pytest", "prek"], "Command must be pytest, prek, or unset"
     path = resolve_root(path, use_config=True)
     assert path.exists(), "Path must exist"
 
     from scaffold.core import find_python_projects
 
+    projects = find_python_projects(path, max_depth)
+    if not projects:
+        console.print("[yellow]No Python projects found[/yellow]")
+        return
+
+    commands = [command] if command else ["pytest", "prek"]
     storage = ResultStorage()
-    if not storage.status_file.exists():
-        console.print("[yellow]No results yet. Run 'sc run pytest -r' first.[/yellow]")
-        return
+    results = _collect_status(projects, commands, storage, force)
 
-    project_paths = {str(p) for p in find_python_projects(path, max_depth=3)}
-    results = [r for r in storage.load_results(command=command) if r.repo_path in project_paths]
-
-    if not results:
-        console.print(
-            f"[yellow]No cached results for projects in {path}[/yellow]\n"
-            f"[dim]Run 'sc run pytest -r' or 'sc run prek -r' in this directory[/dim]"
-        )
-        return
-
-    console.print(f"[bold]Cached results[/bold] - {path}")
-    if command:
-        console.print(f"[dim]Filtered by: {command}[/dim]")
-    console.print(f"[dim]Total results: {len(results)}[/dim]\n")
+    console.print(f"\n[bold]Status[/bold] - {path}\n")
     _print_results_by_repo(results)
     if detailed:
         _print_detailed_results(results)
+    console.print(f"\n[dim]Results saved to {storage.status_file}[/dim]")
 
 
 if __name__ == "__main__":

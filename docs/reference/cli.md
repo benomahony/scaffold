@@ -87,26 +87,9 @@ sc adopt [OPTIONS]
 | `--path` | PATH | cwd | Repository path |
 | `--dry-run` | FLAG | off | Preview without writing |
 
-## sc run
-
-Run pytest or prek on the current project, or all projects with `-r`.
-
-```
-sc run {pytest|prek} [OPTIONS]
-```
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--recursive, -r` | FLAG | off | Run on all projects |
-| `--force, -f` | FLAG | off | Ignore cache |
-| `--path` | PATH | cwd | Root directory |
-| `--max-depth` | INT | 3 | Directory depth limit |
-
-Results are cached; view them with `sc status`.
-
 ## sc status
 
-Show cached pytest/prek results for projects in a directory.
+Run pytest and prek across your projects (cached) and show their status in a per-project table.
 
 ```
 sc status [OPTIONS]
@@ -114,6 +97,10 @@ sc status [OPTIONS]
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `--command` | TEXT | all | Filter by `pytest` or `prek` |
-| `--path` | PATH | cwd | Filter by repos in directory |
+| `--command` | TEXT | both | Only `pytest` or `prek` |
+| `--force, -f` | FLAG | off | Re-run, ignore cache |
 | `--detailed, -d` | FLAG | off | Show full output |
+| `--path` | PATH | config root or cwd | Repos directory to search |
+| `--max-depth` | INT | 3 | Directory depth limit |
+
+Results are cached by file mtime, so unchanged projects are instant; `--force` re-runs everything. The search root defaults to the configured root (see `sc config`) or the current directory.

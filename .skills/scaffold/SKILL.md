@@ -45,7 +45,7 @@ result = example_function("World")
 - `sc config --root <path>` sets a default root so `-r`/`status` work from anywhere
 - `sc upgrade --dry-run` previews which files change; review applied changes with git
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
-- Runs pytest/prek across many repos: `sc run pytest -r` / `sc run prek -r`, cached, viewed with `sc status`
+- `sc status` runs pytest + prek across many repos (cached) and shows a pass/fail table
 - Creates new projects with modern tooling (uv, ruff, basedpyright, pytest, prek)
 - Generates GitHub Actions CI and zensical.toml docs
 - llms.txt, MCP server, and Agent Skill are opt-in via `sc init --llms/--mcp/--skill`

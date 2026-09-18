@@ -1,33 +1,33 @@
-# Run tests across all projects
+# Check status across all projects
 
-`sc run pytest -r` and `sc run prek -r` run pytest or prek on every Python project found in a directory tree, in parallel.
+`sc status` runs pytest and prek on every Python project found under your root (the configured root, or the current directory), in parallel, and prints a per-project pass/fail table.
 
-## Run pytest on all projects
+## Run across all projects
 
 ```bash
-sc run pytest --recursive
-sc run pytest -r --path ~/Code
+sc status
+sc status --path ~/Code
 ```
 
-## Run prek on all projects
+Set a default root once so `sc status` works from anywhere (see [config](../reference/cli.md#sc-config)):
 
 ```bash
-sc run prek --recursive
-sc run prek -r --path ~/Code
+sc config --root ~/Code
+sc status
+```
+
+## Only one tool
+
+```bash
+sc status --command pytest
+sc status --command prek
 ```
 
 ## Force re-run (skip cache)
 
-Results are cached by file modification time. Use `--force` to bypass the cache:
+Results are cached by file modification time, so unchanged projects are instant. Use `--force` to re-run everything:
 
 ```bash
-sc run pytest -r --force
-```
-
-## View cached results
-
-```bash
-sc status
-sc status --command pytest
-sc status --detailed
+sc status --force
+sc status --detailed   # full output per project
 ```
