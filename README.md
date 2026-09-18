@@ -22,8 +22,8 @@ sc upgrade --dry-run # preview which files change first
 sc upgrade -r        # upgrade every repo in a tree
 sc adopt             # bring a repo up to standard without clobbering files
 sc test -r           # run pytest across all repos (cached)
+sc test --status     # show the latest cached test results
 sc prek -r           # run prek across all repos (cached)
-sc status            # show the latest test and prek results
 ```
 
 `sc upgrade` rewrites the files scaffold owns (`.pre-commit-config.yaml`,

@@ -67,7 +67,7 @@ sc adopt [OPTIONS]
 
 ## sc test
 
-Run pytest on current project or all projects.
+Run pytest on the current project or all projects, or show cached results.
 
 ```
 sc test [OPTIONS]
@@ -77,42 +77,17 @@ sc test [OPTIONS]
 |---|---|---|---|
 | `--recursive, -r` | FLAG | off | Run on all projects |
 | `--force, -f` | FLAG | off | Ignore cache |
+| `--status` | FLAG | off | Show cached results instead of running |
+| `--detailed, -d` | FLAG | off | With `--status`, show full output |
 | `--path` | PATH | cwd | Root directory |
 | `--max-depth` | INT | 3 | Directory depth limit |
 
 ## sc prek
 
-Run prek on current project or all projects.
+Run prek on the current project or all projects, or show cached results.
 
 ```
 sc prek [OPTIONS]
 ```
 
 Same options as `sc test`.
-
-## sc list
-
-List all Python projects in directory tree.
-
-```
-sc list [OPTIONS]
-```
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--path` | PATH | cwd | Root directory |
-| `--max-depth` | INT | 3 | Directory depth limit |
-
-## sc status
-
-Display cached test/prek results.
-
-```
-sc status [OPTIONS]
-```
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--command` | TEXT | all | Filter by `pytest` or `prek` |
-| `--path` | PATH | cwd | Filter by repos in directory |
-| `--detailed, -d` | FLAG | off | Show full output |

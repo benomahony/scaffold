@@ -23,8 +23,8 @@ Examples:
   sc upgrade --dry-run                  Preview which files change
   sc adopt                              Bring an existing repo up to standard
   sc test -r                            Run pytest across all repos
+  sc test --status                      Show the last cached test results
   sc prek -r                            Run prek across all repos
-  sc list                               List all Python projects
   sc init my-project                    Create a new project from scratch
 """,
     no_args_is_help=True,
@@ -551,15 +551,20 @@ def sync_hook_pins_command() -> None:
 def test(
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
+    status: bool = typer.Option(False, "--status", help="Show cached results instead of running"),
+    detailed: bool = typer.Option(False, "--detailed", "-d", help="With --status, show output"),
     path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Run pytest on current project or all projects with -r."""
+    """Run pytest on the current project, all projects with -r, or --status for cached results."""
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
+    if status:
+        _show_status("pytest", path, detailed)
+        return
     if not recursive:
         console.print("[bold]Running pytest on current project...[/bold]\n")
         result = subprocess.run(["uv", "run", "pytest"], check=False)
@@ -572,47 +577,26 @@ def test(
 def prek(
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
+    status: bool = typer.Option(False, "--status", help="Show cached results instead of running"),
+    detailed: bool = typer.Option(False, "--detailed", "-d", help="With --status, show output"),
     path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Run prek on current project or all projects with -r."""
+    """Run prek on the current project, all projects with -r, or --status for cached results."""
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
+    if status:
+        _show_status("prek", path, detailed)
+        return
     if not recursive:
         console.print("[bold]Running prek on current project...[/bold]\n")
         result = subprocess.run(["uv", "run", "prek", "run", "--all-files"], check=False)
         raise typer.Exit(result.returncode)
 
     _run_bulk_interactive("prek", path, max_depth, force)
-
-
-@app.command(name="list")
-def list_projects(
-    path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
-    max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum directory depth for recursive search"
-    ),
-) -> None:
-    """List all Python projects in directory tree."""
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
-
-    from scaffold.core import find_python_projects
-
-    console.print(f"[bold]Finding Python projects in:[/bold] {path}")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-    projects = find_python_projects(path, max_depth)
-    if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-    console.print(f"[bold]Found {len(projects)} project(s):[/bold]\n")
-    for project in projects:
-        relative = project.relative_to(path) if project.is_relative_to(path) else project
-        console.print(f"  • {relative}")
-    console.print("\n[dim]Run 'sc test -r' or 'sc prek -r' to execute commands[/dim]")
 
 
 def _print_results_by_repo(results: list) -> None:
@@ -679,38 +663,29 @@ def _print_detailed_results(results: list) -> None:
         console.print()
 
 
-@app.command()
-def status(
-    command: str | None = typer.Option(None, help="Filter by command (pytest or prek)"),
-    path: Path = typer.Option(Path.cwd(), help="Filter by repos in this directory"),
-    detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed output"),
-) -> None:
-    """Display test/prek results for projects in current directory."""
-    assert command in [None, "pytest", "prek"], "Command must be pytest, prek, or unset"
+def _show_status(command: str, path: Path, detailed: bool) -> None:
+    assert command in ["pytest", "prek"], "Command must be pytest or prek"
     assert path.exists(), "Path must exist"
 
     from scaffold.core import find_python_projects
 
     storage = ResultStorage()
+    runner = "test" if command == "pytest" else "prek"
     if not storage.status_file.exists():
-        console.print("[yellow]No results found. Run 'sc test -r' or 'sc prek -r' first.[/yellow]")
+        console.print(f"[yellow]No results yet. Run 'sc {runner} -r' first.[/yellow]")
         return
 
-    projects = find_python_projects(path, max_depth=3)
-    project_paths = {str(p) for p in projects}
-    all_results = storage.load_results(command=command) if command else storage.load_results()
-    results = [r for r in all_results if r.repo_path in project_paths]
+    project_paths = {str(p) for p in find_python_projects(path, max_depth=3)}
+    results = [r for r in storage.load_results(command=command) if r.repo_path in project_paths]
 
     if not results:
         console.print(
-            f"[yellow]No results found for projects in {path}[/yellow]\n"
-            f"[dim]Run 'sc test -r' or 'sc prek -r' in this directory[/dim]"
+            f"[yellow]No {command} results for projects in {path}[/yellow]\n"
+            f"[dim]Run 'sc {runner} -r' in this directory[/dim]"
         )
         return
 
-    console.print(f"[bold]Bulk Command Results[/bold] - {path}")
-    if command:
-        console.print(f"[dim]Filtered by: {command}[/dim]")
+    console.print(f"[bold]Cached {command} results[/bold] - {path}")
     console.print(f"[dim]Total results: {len(results)}[/dim]\n")
     _print_results_by_repo(results)
     if detailed:

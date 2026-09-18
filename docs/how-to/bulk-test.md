@@ -24,9 +24,10 @@ Results are cached by file modification time. Use `--force` to bypass the cache:
 sc test -r --force
 ```
 
-## View results
+## View cached results
 
 ```bash
-sc status
-sc status --detailed
+sc test --status
+sc test --status --detailed
+sc prek --status
 ```
