@@ -42,6 +42,7 @@ result = example_function("World")
 ## Key Features
 
 - Maintains existing repos: `sc check`, `sc upgrade`, `sc adopt`
+- `sc config --root <path>` sets a default root so `-r`/`status` work from anywhere
 - `sc upgrade --dry-run` previews which files change; review applied changes with git
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
 - Runs pytest/prek across many repos: `sc run pytest -r` / `sc run prek -r`, cached, viewed with `sc status`

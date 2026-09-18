@@ -765,3 +765,36 @@ def test_bulk_status_detailed(tmp_path: Path) -> None:
 
     finally:
         os.chdir(original_cwd)
+
+
+def test_config_root_drives_recursive_commands(tmp_path: Path) -> None:
+    """A configured root lets check -r run from an unrelated directory."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    projects_root = tmp_path / "code"
+    (projects_root / "proj").mkdir(parents=True)
+    (projects_root / "proj" / "pyproject.toml").write_text('[project]\nname = "proj"\n')
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    env = {**os.environ, "SCAFFOLD_CONFIG": str(tmp_path / "config.json")}
+
+    set_result = subprocess.run(
+        ["uv", "run", "scaffold", "config", "--root", str(projects_root)],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert set_result.returncode == 0, f"Config set must succeed: {set_result.stderr}"
+    assert "Root set to" in set_result.stdout, "Must confirm the root was set"
+
+    check = subprocess.run(
+        ["uv", "run", "scaffold", "check", "-r"],
+        cwd=elsewhere,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert check.returncode == 0, f"check -r must succeed: {check.stderr}"
+    assert "1 project(s)" in check.stdout, "check -r must scan the configured root"
+    assert "proj" in check.stdout, "Must find the project under the configured root"

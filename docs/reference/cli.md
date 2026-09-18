@@ -1,5 +1,27 @@
 # CLI reference
 
+## sc config
+
+Show or set scaffold configuration. With no options, prints the current config.
+
+```
+sc config [OPTIONS]
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--root` | PATH | unset | Set a default projects root |
+| `--clear` | FLAG | off | Clear the configured root |
+
+Set a root so the tree-searching commands (`check -r`, `run -r`, `status`) work from anywhere without cd-ing into your code directory:
+
+```bash
+sc config --root ~/code
+sc status            # now scans ~/code from anywhere
+```
+
+Single-project commands (`check`, `upgrade`, `adopt` without `-r`) still default to the current directory. Config lives at `~/.scaffold/config.json`; override the location with the `SCAFFOLD_CONFIG` environment variable.
+
 ## sc init
 
 Create a new Python project.

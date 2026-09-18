@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from scaffold.config import ScaffoldConfig, resolve_root
 from scaffold.core import create_project, preview_project
 from scaffold.models import ProjectConfig, ProjectType
 from scaffold.storage import ResultStorage
@@ -17,6 +18,7 @@ app = typer.Typer(
     help="""Keep Python repos current with opinionated tooling.
 
 Examples:
+  sc config --root ~/code               Set a default root so -r works anywhere
   sc check                              Check project health
   sc check -r                           Check every repo in a tree
   sc upgrade                            Refresh infrastructure files
@@ -435,7 +437,7 @@ def init(
 
 @app.command()
 def check(
-    path: Path = typer.Option(Path.cwd(), help="Project path to check"),
+    path: Path | None = typer.Option(None, help="Project path (cwd, or config root with -r)"),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="Check all projects in directory tree"
     ),
@@ -444,6 +446,7 @@ def check(
     ),
 ) -> None:
     """Check project structure and configuration."""
+    path = resolve_root(path, use_config=recursive)
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
@@ -466,7 +469,7 @@ def check(
 
 @app.command()
 def upgrade(
-    path: Path = typer.Option(Path.cwd(), help="Project path to upgrade"),
+    path: Path | None = typer.Option(None, help="Project path (cwd, or config root with -r)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="Upgrade all projects in directory tree"
@@ -480,6 +483,7 @@ def upgrade(
     Refreshes scaffold-managed files in place. Use --dry-run to preview which
     files change first; review the applied changes with 'git diff'.
     """
+    path = resolve_root(path, use_config=recursive)
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
@@ -527,6 +531,46 @@ def adopt(
         console.print("[dim]Run 'uv sync', then 'sc upgrade' as needed.[/dim]")
 
 
+def _print_config(cfg: ScaffoldConfig) -> None:
+    assert cfg is not None, "Config must not be None"
+    assert hasattr(cfg, "root"), "Config must have a root field"
+
+    if cfg.root:
+        console.print(f"[cyan]root:[/cyan] {cfg.root}")
+    else:
+        console.print("[dim]No root configured. Set one with 'sc config --root <path>'.[/dim]")
+
+
+@app.command()
+def config(
+    root: Path | None = typer.Option(None, "--root", help="Set the default projects root"),
+    clear: bool = typer.Option(False, "--clear", help="Clear the configured root"),
+) -> None:
+    """Show or set scaffold config (with no options, prints the current config).
+
+    Set a default projects root so 'sc check -r', 'sc run -r', and 'sc status'
+    work from anywhere without cd-ing into your code directory.
+    """
+    from scaffold.config import load_config, save_config
+
+    cfg = load_config()
+    assert cfg is not None, "Config must load"
+
+    if clear:
+        cfg.root = None
+        save_config(cfg)
+        console.print("[green]✓ Cleared configured root[/green]")
+        return
+    if root is not None:
+        resolved = root.expanduser().resolve()
+        assert resolved.exists(), f"Root {resolved} does not exist"
+        cfg.root = resolved
+        save_config(cfg)
+        console.print(f"[green]✓ Root set to[/green] {resolved}")
+        return
+    _print_config(cfg)
+
+
 @app.command(name="sync-hook-pins", hidden=True)
 def sync_hook_pins_command() -> None:
     """Copy pinned hook revisions from .pre-commit-config.yaml into the template.
@@ -558,7 +602,7 @@ def run(
     tool: str = typer.Argument(..., help="Tool to run: pytest or prek"),
     recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
-    path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
+    path: Path | None = typer.Option(None, help="Search root (cwd, or config root with -r)"),
     max_depth: int = typer.Option(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
@@ -567,6 +611,7 @@ def run(
 
     Results are cached; view them with 'sc status'.
     """
+    path = resolve_root(path, use_config=recursive)
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
@@ -648,11 +693,12 @@ def _print_detailed_results(results: list) -> None:
 @app.command()
 def status(
     command: str | None = typer.Option(None, "--command", help="Filter by pytest or prek"),
-    path: Path = typer.Option(Path.cwd(), help="Filter by repos in this directory"),
+    path: Path | None = typer.Option(None, help="Repos dir (config root or cwd)"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show full output"),
 ) -> None:
     """Show cached pytest/prek results for projects in a directory."""
     assert command in [None, "pytest", "prek"], "Command must be pytest, prek, or unset"
+    path = resolve_root(path, use_config=True)
     assert path.exists(), "Path must exist"
 
     from scaffold.core import find_python_projects

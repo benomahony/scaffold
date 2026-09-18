@@ -16,6 +16,7 @@ uv tool install git+https://github.com/benomahony/scaffold
 ## Maintain existing repos
 
 ```bash
+sc config --root ~/code   # set a default root so -r and status work anywhere
 sc check -r          # audit every repo in a directory tree
 sc upgrade           # refresh scaffold managed infrastructure files
 sc upgrade --dry-run # preview which files change first
@@ -25,6 +26,11 @@ sc run pytest -r     # run pytest across all repos (cached)
 sc run prek -r       # run prek across all repos (cached)
 sc status            # show the latest cached results
 ```
+
+`sc config --root ~/code` stores a default projects root so the tree-searching
+commands (`check -r`, `run -r`, `status`) work from anywhere, without cd-ing into
+your code directory. Single-project commands still default to the current
+directory. Config lives at `~/.scaffold/config.json`.
 
 `sc upgrade` rewrites the files scaffold owns (`.pre-commit-config.yaml`,
 `zensical.toml`, CI workflow). Use `--dry-run` to preview which files change;
