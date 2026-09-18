@@ -558,7 +558,7 @@ def test_ai_extras_opt_in(tmp_path: Path) -> None:
 
 
 def test_bulk_test_command(tmp_path: Path) -> None:
-    """Test test -r command runs pytest on all projects."""
+    """Test run pytest -r runs pytest on all projects."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -587,7 +587,7 @@ def test_bulk_test_command(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "run", "pytest", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -613,7 +613,7 @@ def test_bulk_test_command(tmp_path: Path) -> None:
 
 
 def test_bulk_prek_command(tmp_path: Path) -> None:
-    """Test prek -r command runs prek on all projects."""
+    """Test run prek -r runs prek on all projects."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -642,7 +642,7 @@ def test_bulk_prek_command(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "prek", "-r", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "run", "prek", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -665,7 +665,7 @@ def test_bulk_prek_command(tmp_path: Path) -> None:
 
 
 def test_bulk_status_command(tmp_path: Path) -> None:
-    """Test test --status displays cached results."""
+    """Test status displays cached results."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -693,20 +693,21 @@ def test_bulk_status_command(tmp_path: Path) -> None:
         )
 
         subprocess.run(
-            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "run", "pytest", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "test", "--status", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--command", "pytest", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
 
         assert result.returncode == 0, f"Status must succeed: {result.stderr}"
-        assert "Cached pytest results" in result.stdout, "Must show cached results header"
+        assert "Cached results" in result.stdout, "Must show cached results header"
+        assert "Filtered by: pytest" in result.stdout, "Must show the command filter"
         assert "status-test" in result.stdout or "status_test" in result.stdout, (
             "Must show project in results"
         )
@@ -744,14 +745,14 @@ def test_bulk_status_detailed(tmp_path: Path) -> None:
         )
 
         subprocess.run(
-            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "run", "pytest", "-r", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "test", "--status", "--detailed", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--detailed", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )

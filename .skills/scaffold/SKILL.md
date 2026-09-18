@@ -44,7 +44,7 @@ result = example_function("World")
 - Maintains existing repos: `sc check`, `sc upgrade`, `sc adopt`
 - `sc upgrade --dry-run` previews which files change; review applied changes with git
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
-- Runs pytest/prek across many repos with `-r`, caches results, shows them with `--status`
+- Runs pytest/prek across many repos: `sc run pytest -r` / `sc run prek -r`, cached, viewed with `sc status`
 - Creates new projects with modern tooling (uv, ruff, basedpyright, pytest, prek)
 - Generates GitHub Actions CI and zensical.toml docs
 - llms.txt, MCP server, and Agent Skill are opt-in via `sc init --llms/--mcp/--skill`

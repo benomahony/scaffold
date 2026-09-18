@@ -65,29 +65,33 @@ sc adopt [OPTIONS]
 | `--path` | PATH | cwd | Repository path |
 | `--dry-run` | FLAG | off | Preview without writing |
 
-## sc test
+## sc run
 
-Run pytest on the current project or all projects, or show cached results.
+Run pytest or prek on the current project, or all projects with `-r`.
 
 ```
-sc test [OPTIONS]
+sc run {pytest|prek} [OPTIONS]
 ```
 
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `--recursive, -r` | FLAG | off | Run on all projects |
 | `--force, -f` | FLAG | off | Ignore cache |
-| `--status` | FLAG | off | Show cached results instead of running |
-| `--detailed, -d` | FLAG | off | With `--status`, show full output |
 | `--path` | PATH | cwd | Root directory |
 | `--max-depth` | INT | 3 | Directory depth limit |
 
-## sc prek
+Results are cached; view them with `sc status`.
 
-Run prek on the current project or all projects, or show cached results.
+## sc status
+
+Show cached pytest/prek results for projects in a directory.
 
 ```
-sc prek [OPTIONS]
+sc status [OPTIONS]
 ```
 
-Same options as `sc test`.
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--command` | TEXT | all | Filter by `pytest` or `prek` |
+| `--path` | PATH | cwd | Filter by repos in directory |
+| `--detailed, -d` | FLAG | off | Show full output |
