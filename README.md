@@ -53,6 +53,9 @@ and docs. An `llms.txt`, an MCP server, a Claude Code Agent Skill, and a
 scheduled `scaffold-update` workflow are opt-in via `--llms`, `--mcp`,
 `--skill`, and `--auto-update`.
 
+New projects are tracked in `~/.scaffold/config.json` automatically (unless an
+existing root already covers them), so `sc status` picks them up from anywhere.
+
 With `--auto-update`, a weekly GitHub Action runs `scaffold upgrade` against the
 latest scaffold and opens a PR when your infrastructure files have drifted, so
 your projects stay current as scaffold evolves.

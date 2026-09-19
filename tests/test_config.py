@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scaffold.config import ScaffoldConfig, load_config, resolve_roots, save_config
+from scaffold.config import ScaffoldConfig, add_root, load_config, resolve_roots, save_config
 
 pytestmark = pytest.mark.unit
 
@@ -59,6 +59,38 @@ def test_resolve_roots_returns_all_configured_roots(tmp_path: Path) -> None:
     resolved = resolve_roots(None, use_config=True, config_file=config_file)
 
     assert resolved == [one, two], "Must return existing configured roots, skipping missing ones"
+
+
+def test_add_root_tracks_new_project(tmp_path: Path) -> None:
+    """add_root records a project not already covered by a root."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    config_file = tmp_path / "config.json"
+    project = tmp_path / "new-project"
+    project.mkdir()
+
+    tracked = add_root(project, config_file)
+
+    assert tracked is True, "A fresh project must be tracked"
+    assert load_config(config_file).roots == [project], "Project must be saved as a root"
+
+
+def test_add_root_skips_project_under_existing_root(tmp_path: Path) -> None:
+    """add_root does nothing when a configured root already covers the project."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    config_file = tmp_path / "config.json"
+    code = tmp_path / "code"
+    project = code / "nested-project"
+    project.mkdir(parents=True)
+    save_config(ScaffoldConfig(roots=[code]), config_file)
+
+    tracked = add_root(project, config_file)
+
+    assert tracked is False, "A project under an existing root must not be re-added"
+    assert load_config(config_file).roots == [code], "Roots must stay unchanged"
 
 
 def test_resolve_roots_falls_back_to_cwd(tmp_path: Path) -> None:

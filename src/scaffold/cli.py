@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from scaffold.config import resolve_roots
+from scaffold.config import add_root, resolve_roots
 from scaffold.core import create_project, preview_project
 from scaffold.models import ProjectConfig, ProjectType
 from scaffold.storage import ResultStorage
@@ -146,6 +146,8 @@ def _run_init(config: ProjectConfig, output_path: Path) -> None:
     console.print("[green]✓[/green] Dependencies installed")
     console.print("[green]✓[/green] Pre-commit hooks configured")
     console.print("[green]✓[/green] Tests passing")
+    if add_root(output_path):
+        console.print("[dim]Tracked in ~/.scaffold/config.json[/dim]")
     if sys.stdout.isatty():
         shell = os.environ.get("SHELL", "/bin/zsh")
         console.print(f"\n[dim]Starting shell in {output_path.name}/ and opening editor...[/dim]")

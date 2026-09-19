@@ -42,7 +42,7 @@ result = example_function("World")
 ## Key Features
 
 - Maintains existing repos: `sc status`, `sc upgrade`, `sc adopt`
-- Roots in `~/.scaffold/config.json` (`{"roots": ["...", "..."]}`) let `sc status` scan them from anywhere
+- Roots in `~/.scaffold/config.json` (`{"roots": ["...", "..."]}`) let `sc status` scan them from anywhere; `sc init` auto-tracks each new project as a root
 - `sc upgrade --dry-run` previews which files change; review applied changes with git
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
 - `sc status` runs pytest + prek across many repos (cached) and shows a pass/fail table

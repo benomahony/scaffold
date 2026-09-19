@@ -25,7 +25,9 @@ Missing roots are skipped. An explicit `--path` overrides the configured roots, 
 
 ## sc init
 
-Create a new Python project.
+Create a new Python project. The new project is added to your configured roots
+(unless an existing root already covers it), so `sc status` includes it from
+anywhere.
 
 ```
 sc init PROJECT_NAME [OPTIONS]

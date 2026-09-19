@@ -30,6 +30,19 @@ def save_config(config: ScaffoldConfig, config_file: Path | None = None) -> None
     target.write_text(config.model_dump_json(indent=2))
 
 
+def add_root(project_path: Path, config_file: Path | None = None) -> bool:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    config = load_config(config_file)
+    for root in config.roots:
+        if project_path == root or project_path.is_relative_to(root):
+            return False
+    config.roots.append(project_path)
+    save_config(config, config_file)
+    return True
+
+
 def resolve_roots(
     path: Path | None, use_config: bool, config_file: Path | None = None
 ) -> list[Path]:

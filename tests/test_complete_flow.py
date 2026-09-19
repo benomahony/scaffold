@@ -158,6 +158,34 @@ def test_workflow_creates_working_project(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
+def test_init_tracks_project_in_config(tmp_path: Path, isolated_scaffold_config: Path) -> None:
+    """init registers the new project as a root so status finds it later."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert isolated_scaffold_config.suffix == ".json", "Config target must be a json file"
+
+    project_name = "test-tracked-project"
+    original_cwd = Path.cwd()
+
+    try:
+        os.chdir(tmp_path)
+
+        result = subprocess.run(
+            ["uv", "run", "scaffold", "init", project_name, "--author", "Test"],
+            input="n\n",
+            text=True,
+            capture_output=True,
+        )
+        assert result.returncode == 0, f"Init must succeed:\n{result.stderr}"
+
+        from scaffold.config import load_config
+
+        roots = load_config(isolated_scaffold_config).roots
+        project_path = tmp_path / project_name
+        assert project_path in roots, "Init must track the new project in config"
+    finally:
+        os.chdir(original_cwd)
+
+
 def test_complete_manual_workflow(tmp_path: Path) -> None:
     """Verify project is fully usable immediately after init.
 
