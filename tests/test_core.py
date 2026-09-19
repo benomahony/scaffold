@@ -337,6 +337,24 @@ def test_sync_hook_pins_copies_revs_into_template(tmp_path: Path) -> None:
     assert sync_hook_pins(config, template) is False, "Second run must be a no-op"
 
 
+def test_find_python_projects_respects_max_depth(tmp_path: Path) -> None:
+    """find_python_projects excludes projects deeper than max_depth."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    shallow = tmp_path / "shallow"
+    shallow.mkdir()
+    (shallow / "pyproject.toml").write_text("[project]\nname = 'shallow'\n")
+    deep = tmp_path / "a" / "b" / "c" / "deep"
+    deep.mkdir(parents=True)
+    (deep / "pyproject.toml").write_text("[project]\nname = 'deep'\n")
+
+    names = [p.name for p in find_python_projects(tmp_path, max_depth=2)]
+
+    assert "shallow" in names, "Must find the shallow project"
+    assert "deep" not in names, "Must exclude the project beyond max_depth"
+
+
 def test_find_python_projects_excludes_venv(tmp_path: Path) -> None:
     """Test find_python_projects does not traverse .venv directories."""
     assert tmp_path is not None, "Temp path must not be None"

@@ -2,8 +2,7 @@
 
 Goal-oriented guides for common scaffold tasks.
 
-- [Check project health](check-health.md)
+- [Check status across all projects](bulk-test.md)
 - [Upgrade infrastructure files](upgrade-project.md)
 - [Adopt an existing repository](adopt-repo.md)
-- [Check status across all projects](bulk-test.md)
 - [Create a project](create-project.md)

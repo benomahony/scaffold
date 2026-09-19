@@ -9,11 +9,10 @@ sc status
 sc status --path ~/Code
 ```
 
-Set a default root once so `sc status` works from anywhere (see [config](../reference/cli.md#sc-config)):
+Set a default root once so `sc status` works from anywhere (see [Configuration](../reference/cli.md#configuration)) by creating `~/.scaffold/config.json`:
 
-```bash
-sc config --root ~/Code
-sc status
+```json
+{ "root": "/home/you/Code" }
 ```
 
 ## Only one tool

@@ -9,50 +9,6 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-def test_check_recursive_lists_projects(tmp_path: Path) -> None:
-    """check -r enumerates every project in the tree."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        for i in range(2):
-            subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "scaffold",
-                    "init",
-                    f"dir-test-{i}",
-                    "--author",
-                    "Test",
-                    "--description",
-                    "Test",
-                ],
-                input="n\n",
-                text=True,
-                capture_output=True,
-                check=True,
-            )
-
-        result = subprocess.run(
-            ["uv", "run", "scaffold", "check", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, "check -r must succeed"
-        assert "2 project(s)" in result.stdout, "Must find 2 projects"
-        assert "dir-test-0" in result.stdout or "dir_test_0" in result.stdout, "Must list project 0"
-        assert "dir-test-1" in result.stdout or "dir_test_1" in result.stdout, "Must list project 1"
-
-    finally:
-        os.chdir(original_cwd)
-
-
 def test_status_groups_results_by_repo(tmp_path: Path) -> None:
     """status shows pytest and prek grouped per repository."""
     assert tmp_path is not None, "Temp path must not be None"
@@ -82,7 +38,7 @@ def test_status_groups_results_by_repo(tmp_path: Path) -> None:
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--run", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )

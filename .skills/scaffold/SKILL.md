@@ -41,8 +41,8 @@ result = example_function("World")
 
 ## Key Features
 
-- Maintains existing repos: `sc check`, `sc upgrade`, `sc adopt`
-- `sc config --root <path>` sets a default root so `-r`/`status` work from anywhere
+- Maintains existing repos: `sc status`, `sc upgrade`, `sc adopt`
+- A default root in `~/.scaffold/config.json` (`{"root": "..."}`) lets `sc status` run from anywhere
 - `sc upgrade --dry-run` previews which files change; review applied changes with git
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
 - `sc status` runs pytest + prek across many repos (cached) and shows a pass/fail table

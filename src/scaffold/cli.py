@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from scaffold.config import ScaffoldConfig, resolve_root
+from scaffold.config import resolve_root
 from scaffold.core import create_project, preview_project
 from scaffold.models import ProjectConfig, ProjectType
 from scaffold.storage import ResultStorage
@@ -18,13 +18,11 @@ app = typer.Typer(
     help="""Keep Python repos current with opinionated tooling.
 
 Examples:
-  sc config --root ~/code               Set a default root so -r works anywhere
-  sc check                              Check project health
-  sc check -r                           Check every repo in a tree
+  sc status                             Show last test/prek result per repo
+  sc status --run                       Run pytest + prek and record the results
   sc upgrade                            Refresh infrastructure files
-  sc upgrade --dry-run                  Preview which files change
+  sc upgrade -r                         Upgrade every repo in a tree
   sc adopt                              Bring an existing repo up to standard
-  sc status                             Run pytest + prek across repos, show status
   sc init my-project                    Create a new project from scratch
 """,
     no_args_is_help=True,
@@ -152,45 +150,6 @@ def _run_init(config: ProjectConfig, output_path: Path) -> None:
         shell = os.environ.get("SHELL", "/bin/zsh")
         console.print(f"\n[dim]Starting shell in {output_path.name}/ and opening editor...[/dim]")
         os.execvp(shell, [shell, "-c", f"nvim . && exec {shell}"])
-
-
-def _check_recursive(path: Path, max_depth: int) -> None:
-    assert path is not None, "Path must not be None"
-    assert max_depth > 0, "Max depth must be positive"
-
-    from scaffold.core import bulk_maintenance
-
-    console.print(f"[bold]Checking projects in:[/bold] {path}\n")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-    results = bulk_maintenance(path, "check", max_depth=max_depth)
-    total = len(results)
-    if total == 0:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-    success_count = sum(1 for r in results if r["status"] == "success" and not r["details"])
-    issues_count = sum(1 for r in results if r["status"] == "success" and r["details"])
-    error_count = sum(1 for r in results if r["status"] == "error")
-    console.print(f"[bold]Checked {total} project(s):[/bold]")
-    console.print(f"  [green]✓[/green] Clean: {success_count}")
-    if issues_count > 0:
-        console.print(f"  [yellow]![/yellow] Issues: {issues_count}")
-    if error_count > 0:
-        console.print(f"  [red]✗[/red] Errors: {error_count}")
-    console.print()
-    for result in results:
-        name = result["project"].name
-        details = result.get("details", [])
-        if result["status"] == "success":
-            if details:
-                console.print(f"[yellow]![/yellow] {name}: {len(details)} issue(s)")
-                for issue in details:
-                    console.print(f"    • {issue}")
-            else:
-                console.print(f"[green]✓[/green] {name}")
-        elif result["status"] == "error":
-            console.print(f"[red]✗[/red] {name}: {result.get('error', 'Unknown error')}")
-    if issues_count > 0:
-        console.print("\n[dim]Run 'sc upgrade -r' to fix infrastructure files[/dim]")
 
 
 def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
@@ -336,6 +295,18 @@ def _collect_status(projects: list, commands: list, storage: ResultStorage, forc
     return results
 
 
+def _read_status(projects: list, commands: list, storage: ResultStorage) -> list:
+    assert projects, "Projects must not be empty"
+    assert commands, "Commands must not be empty"
+
+    project_paths = {str(p) for p in projects}
+    results: list = []
+    for command in commands:
+        latest = storage.get_latest_by_repo(command)
+        results.extend(result for repo, result in latest.items() if repo in project_paths)
+    return results
+
+
 @app.callback()
 def main(
     _version: bool = typer.Option(
@@ -400,38 +371,6 @@ def init(
 
 
 @app.command()
-def check(
-    path: Path | None = typer.Option(None, help="Project path (cwd, or config root with -r)"),
-    recursive: bool = typer.Option(
-        False, "--recursive", "-r", help="Check all projects in directory tree"
-    ),
-    max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum directory depth for recursive search"
-    ),
-) -> None:
-    """Check project structure and configuration."""
-    path = resolve_root(path, use_config=recursive)
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
-
-    from scaffold.core import check_project
-
-    if recursive:
-        _check_recursive(path, max_depth)
-        return
-
-    console.print(f"[bold]Checking project at:[/bold] {path}\n")
-    issues = check_project(path)
-    if not issues:
-        console.print("[green]✓ Project structure looks good![/green]")
-        return
-    console.print(f"[yellow]Found {len(issues)} issue(s):[/yellow]\n")
-    for issue in issues:
-        console.print(f"  [red]✗[/red] {issue}")
-    console.print("\n[dim]Run 'sc upgrade' to fix infrastructure files[/dim]")
-
-
-@app.command()
 def upgrade(
     path: Path | None = typer.Option(None, help="Project path (cwd, or config root with -r)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
@@ -493,46 +432,6 @@ def adopt(
     else:
         console.print("\n[green]Adopt complete![/green]")
         console.print("[dim]Run 'uv sync', then 'sc upgrade' as needed.[/dim]")
-
-
-def _print_config(cfg: ScaffoldConfig) -> None:
-    assert cfg is not None, "Config must not be None"
-    assert hasattr(cfg, "root"), "Config must have a root field"
-
-    if cfg.root:
-        console.print(f"[cyan]root:[/cyan] {cfg.root}")
-    else:
-        console.print("[dim]No root configured. Set one with 'sc config --root <path>'.[/dim]")
-
-
-@app.command()
-def config(
-    root: Path | None = typer.Option(None, "--root", help="Set the default projects root"),
-    clear: bool = typer.Option(False, "--clear", help="Clear the configured root"),
-) -> None:
-    """Show or set scaffold config (with no options, prints the current config).
-
-    Set a default projects root so 'sc check -r' and 'sc status' work from
-    anywhere without cd-ing into your code directory.
-    """
-    from scaffold.config import load_config, save_config
-
-    cfg = load_config()
-    assert cfg is not None, "Config must load"
-
-    if clear:
-        cfg.root = None
-        save_config(cfg)
-        console.print("[green]✓ Cleared configured root[/green]")
-        return
-    if root is not None:
-        resolved = root.expanduser().resolve()
-        assert resolved.exists(), f"Root {resolved} does not exist"
-        cfg.root = resolved
-        save_config(cfg)
-        console.print(f"[green]✓ Root set to[/green] {resolved}")
-        return
-    _print_config(cfg)
 
 
 @app.command(name="sync-hook-pins", hidden=True)
@@ -624,15 +523,18 @@ def status(
     command: str | None = typer.Option(
         None, "--command", help="Only pytest or prek (default: both)"
     ),
-    force: bool = typer.Option(False, "--force", "-f", help="Re-run, ignore cache"),
+    run: bool = typer.Option(False, "--run", help="Run pytest + prek to refresh state"),
+    force: bool = typer.Option(False, "--force", "-f", help="With --run, ignore the cache"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show full output"),
     path: Path | None = typer.Option(None, help="Repos dir (config root or cwd)"),
     max_depth: int = typer.Option(3, "--max-depth", help="Maximum directory depth for search"),
 ) -> None:
-    """Run pytest and prek across your projects (cached) and show their status.
+    """Show the last pytest/prek result for each of your projects.
 
-    Searches the configured root (see 'sc config') or the current directory.
-    Results are cached by file mtime; use --force to re-run everything.
+    Reads the remembered state so you can see when tests last passed, without
+    running anything. Use --run to refresh by running pytest and prek (cached;
+    add --force to ignore the cache). Searches the root in ~/.scaffold/config.json
+    or the current directory.
     """
     assert command in [None, "pytest", "prek"], "Command must be pytest, prek, or unset"
     path = resolve_root(path, use_config=True)
@@ -647,13 +549,26 @@ def status(
 
     commands = [command] if command else ["pytest", "prek"]
     storage = ResultStorage()
-    results = _collect_status(projects, commands, storage, force)
+    refresh = run or force
+    results = (
+        _collect_status(projects, commands, storage, force)
+        if refresh
+        else _read_status(projects, commands, storage)
+    )
+
+    if not results:
+        console.print(
+            f"[yellow]No results yet for projects in {path}[/yellow]\n"
+            f"[dim]Run 'sc status --run' to record the current results[/dim]"
+        )
+        return
 
     console.print(f"\n[bold]Status[/bold] - {path}\n")
     _print_results_by_repo(results)
     if detailed:
         _print_detailed_results(results)
-    console.print(f"\n[dim]Results saved to {storage.status_file}[/dim]")
+    if refresh:
+        console.print(f"\n[dim]Results saved to {storage.status_file}[/dim]")
 
 
 if __name__ == "__main__":

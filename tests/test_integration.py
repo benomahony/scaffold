@@ -118,51 +118,6 @@ def test_scaffold_python_project_with_docs(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_scaffold_check_command(tmp_path: Path) -> None:
-    """Check reports a freshly scaffolded project as healthy."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    project_name = "test-check-command"
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                project_name,
-                "--author",
-                "Test Author",
-                "--description",
-                "Test check command",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-        )
-
-        assert result.returncode == 0, f"Scaffold command must succeed. Error:\n{result.stderr}"
-
-        project_path = tmp_path / project_name
-
-        check_result = subprocess.run(
-            ["uv", "run", "scaffold", "check", "--path", str(project_path)],
-            capture_output=True,
-            text=True,
-        )
-
-        assert check_result.returncode == 0, "Check command must succeed"
-        assert "Project structure looks good" in check_result.stdout
-
-    finally:
-        os.chdir(original_cwd)
-
-
 def test_scaffold_upgrade_command(tmp_path: Path) -> None:
     """Upgrade rewrites a stale managed file back to the template."""
     assert tmp_path is not None, "Temp path must not be None"
@@ -260,91 +215,6 @@ def test_scaffold_upgrade_dry_run(tmp_path: Path) -> None:
     assert "Would update" in result.stdout, "Must indicate dry-run summary"
     assert ".pre-commit-config.yaml" in result.stdout, "Must list the files that would change"
     assert not (repo / ".pre-commit-config.yaml").exists(), "Dry-run must not write files"
-
-
-def test_check_recursive(tmp_path: Path) -> None:
-    """Test recursive check finds and checks multiple projects."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "project1",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test recursive check",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "project2",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test recursive check",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        nested_dir = tmp_path / "nested"
-        nested_dir.mkdir()
-        os.chdir(nested_dir)
-
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "project3",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test recursive check",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        os.chdir(tmp_path)
-
-        check_result = subprocess.run(
-            ["uv", "run", "scaffold", "check", "--path", str(tmp_path), "-r"],
-            capture_output=True,
-            text=True,
-        )
-
-        assert check_result.returncode == 0, f"Recursive check must succeed: {check_result.stderr}"
-        assert "project1" in check_result.stdout, "Must find project1"
-        assert "project2" in check_result.stdout, "Must find project2"
-        assert "project3" in check_result.stdout, "Must find project3"
-        assert "3 project(s)" in check_result.stdout, "Must report 3 projects"
-
-    finally:
-        os.chdir(original_cwd)
 
 
 def test_upgrade_recursive(tmp_path: Path) -> None:
@@ -461,71 +331,6 @@ def test_upgrade_recursive_dry_run(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_recursive_max_depth(tmp_path: Path) -> None:
-    """Test max-depth limits recursive search."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "shallow",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test max depth",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        deep_dir = tmp_path / "level1" / "level2" / "level3"
-        deep_dir.mkdir(parents=True)
-        os.chdir(deep_dir)
-
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "deep",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test max depth",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        os.chdir(tmp_path)
-
-        check_result = subprocess.run(
-            ["uv", "run", "scaffold", "check", "--path", str(tmp_path), "-r", "--max-depth", "2"],
-            capture_output=True,
-            text=True,
-        )
-
-        assert check_result.returncode == 0, "Check with max-depth must succeed"
-        assert "shallow" in check_result.stdout, "Must find shallow project"
-        assert "deep" not in check_result.stdout, "Must not find deep project beyond max-depth"
-
-    finally:
-        os.chdir(original_cwd)
-
-
 def test_ai_extras_opt_in(tmp_path: Path) -> None:
     """Test llms/mcp/skill extras are off by default and enabled by flags."""
     assert tmp_path is not None, "Temp path must not be None"
@@ -587,7 +392,7 @@ def test_status_runs_pytest_and_prek(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--run", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -642,7 +447,17 @@ def test_status_command_filters_to_one_tool(tmp_path: Path) -> None:
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--command", "pytest", "--path", str(tmp_path)],
+            [
+                "uv",
+                "run",
+                "scaffold",
+                "status",
+                "--run",
+                "--command",
+                "pytest",
+                "--path",
+                str(tmp_path),
+            ],
             capture_output=True,
             text=True,
         )
@@ -684,7 +499,7 @@ def test_status_detailed_shows_output(tmp_path: Path) -> None:
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--detailed", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--run", "--detailed", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -695,3 +510,81 @@ def test_status_detailed_shows_output(tmp_path: Path) -> None:
 
     finally:
         os.chdir(original_cwd)
+
+
+def test_status_reads_stored_state_without_running(tmp_path: Path) -> None:
+    """status reads remembered results and does not re-run when --run is absent."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    original_cwd = Path.cwd()
+
+    try:
+        os.chdir(tmp_path)
+
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "scaffold",
+                "init",
+                "state-test",
+                "--author",
+                "Test",
+                "--description",
+                "Test",
+            ],
+            input="n\n",
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        subprocess.run(
+            ["uv", "run", "scaffold", "status", "--run", "--path", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        result = subprocess.run(
+            ["uv", "run", "scaffold", "status", "--path", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Read status must succeed: {result.stderr}"
+        assert "Running pytest" not in result.stdout, "Read mode must not run anything"
+        assert "state-test" in result.stdout or "state_test" in result.stdout, (
+            "Must show stored repo"
+        )
+
+    finally:
+        os.chdir(original_cwd)
+
+
+def test_config_root_used_by_status(tmp_path: Path) -> None:
+    """A configured root file lets status target an unrelated directory."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    from scaffold.config import ScaffoldConfig, save_config
+
+    projects_root = tmp_path / "code"
+    (projects_root / "proj").mkdir(parents=True)
+    (projects_root / "proj" / "pyproject.toml").write_text('[project]\nname = "proj"\n')
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    config_file = tmp_path / "config.json"
+    save_config(ScaffoldConfig(root=projects_root), config_file)
+    env = {**os.environ, "SCAFFOLD_CONFIG": str(config_file)}
+
+    result = subprocess.run(
+        ["uv", "run", "scaffold", "status"],
+        cwd=elsewhere,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"status must succeed: {result.stderr}"
+    assert str(projects_root) in result.stdout, "status must use the configured root"

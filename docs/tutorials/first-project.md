@@ -43,17 +43,15 @@ hello-world/
 └── zensical.toml
 ```
 
-## Check project health
+## Check its status
+
+Run the tests and pre-commit hooks and record the result:
 
 ```bash
-sc check
+sc status --run
 ```
 
-If everything is configured correctly you'll see:
-
-```
-✓ Project structure looks good!
-```
+Later, `sc status` shows the last recorded result for each of your projects.
 
 ## Next steps
 
