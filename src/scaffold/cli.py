@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from scaffold.config import add_root, resolve_roots
 from scaffold.core import create_project, preview_project
 from scaffold.models import ProjectConfig, ProjectType
 from scaffold.storage import ResultStorage
@@ -14,17 +15,15 @@ from scaffold.storage import ResultStorage
 __version__ = "0.1.0"
 
 app = typer.Typer(
-    help="""Scaffold new Python projects with opinionated defaults.
+    help="""Keep Python repos current with opinionated tooling.
 
 Examples:
-  sc init my-project                    Create new project
-  sc init my-project --dry-run          Preview before creating
-  sc check                              Check project health
-  sc upgrade                            Update infrastructure files
-  sc list                               List all Python projects
-  sc test -r                            Run pytest on all repos
-  sc prek -r                            Run prek on all repos
-  sc status                             Show test results for current dir
+  sc status                             Show last test/prek result per repo
+  sc status --no-cache                  Rerun pytest + prek across every repo
+  sc upgrade                            Refresh infrastructure files
+  sc upgrade -r                         Upgrade every repo in a tree
+  sc adopt                              Bring an existing repo up to standard
+  sc init my-project                    Create a new project from scratch
 """,
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -33,8 +32,8 @@ console = Console()
 
 
 def version_callback(value: bool) -> None:
-    assert isinstance(value, bool), "Value must be boolean"
-    assert __version__ is not None, "Version must be defined"
+    assert __version__, "Version must be defined"
+    assert "." in __version__, "Version must be dotted"
 
     if value:
         console.print(f"sc version {__version__}")
@@ -57,6 +56,48 @@ def _get_git_config(key: str) -> str | None:
     except FileNotFoundError:
         pass
     return None
+
+
+def _build_init_config(
+    project_name: str,
+    author: str | None,
+    email: str | None,
+    description: str | None,
+    python_version: str,
+    no_git_init: bool,
+    *,
+    with_llms: bool,
+    with_mcp: bool,
+    with_skill: bool,
+    with_auto_update: bool,
+) -> ProjectConfig:
+    assert project_name, "Project name must be provided"
+    assert python_version, "Python version must be provided"
+
+    package_name = project_name.replace("-", "_")
+    reserved_names = {"test", "tests", "src", "lib", "data", "docs", "setup", "build", "dist"}
+    if package_name in reserved_names:
+        console.print(
+            f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]"
+        )
+        console.print(
+            f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    return ProjectConfig(
+        name=project_name,
+        type=ProjectType.PYTHON,
+        author=author if author is not None else (_get_git_config("user.name") or "Unknown"),
+        email=email if email is not None else _get_git_config("user.email"),
+        description=description if description is not None else f"Python project: {project_name}",
+        python_version=python_version,
+        git_init=not no_git_init,
+        with_llms=with_llms,
+        with_mcp=with_mcp,
+        with_skill=with_skill,
+        with_auto_update=with_auto_update,
+    )
 
 
 def _show_init_dry_run(config: ProjectConfig, output_path: Path, project_name: str) -> None:
@@ -105,49 +146,12 @@ def _run_init(config: ProjectConfig, output_path: Path) -> None:
     console.print("[green]✓[/green] Dependencies installed")
     console.print("[green]✓[/green] Pre-commit hooks configured")
     console.print("[green]✓[/green] Tests passing")
+    if add_root(output_path):
+        console.print("[dim]Tracked in ~/.scaffold/config.json[/dim]")
     if sys.stdout.isatty():
         shell = os.environ.get("SHELL", "/bin/zsh")
         console.print(f"\n[dim]Starting shell in {output_path.name}/ and opening editor...[/dim]")
         os.execvp(shell, [shell, "-c", f"nvim . && exec {shell}"])
-
-
-def _check_recursive(path: Path, max_depth: int) -> None:
-    assert path is not None, "Path must not be None"
-    assert max_depth > 0, "Max depth must be positive"
-
-    from scaffold.core import bulk_maintenance
-
-    console.print(f"[bold]Checking projects in:[/bold] {path}\n")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-    results = bulk_maintenance(path, "check", max_depth=max_depth)
-    total = len(results)
-    if total == 0:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-    success_count = sum(1 for r in results if r["status"] == "success" and not r["details"])
-    issues_count = sum(1 for r in results if r["status"] == "success" and r["details"])
-    error_count = sum(1 for r in results if r["status"] == "error")
-    console.print(f"[bold]Checked {total} project(s):[/bold]")
-    console.print(f"  [green]✓[/green] Clean: {success_count}")
-    if issues_count > 0:
-        console.print(f"  [yellow]![/yellow] Issues: {issues_count}")
-    if error_count > 0:
-        console.print(f"  [red]✗[/red] Errors: {error_count}")
-    console.print()
-    for result in results:
-        name = result["project"].name
-        details = result.get("details", [])
-        if result["status"] == "success":
-            if details:
-                console.print(f"[yellow]![/yellow] {name}: {len(details)} issue(s)")
-                for issue in details:
-                    console.print(f"    • {issue}")
-            else:
-                console.print(f"[green]✓[/green] {name}")
-        elif result["status"] == "error":
-            console.print(f"[red]✗[/red] {name}: {result.get('error', 'Unknown error')}")
-    if issues_count > 0:
-        console.print("\n[dim]Run 'sc upgrade -r' to fix infrastructure files[/dim]")
 
 
 def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
@@ -160,7 +164,7 @@ def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
     console.print(f"[dim]Max depth: {max_depth}{', Dry run mode' if dry_run else ''}[/dim]\n")
     if dry_run:
         console.print("[yellow]Dry run - no files will be modified[/yellow]\n")
-    results = bulk_maintenance(path, "upgrade", dry_run=dry_run, max_depth=max_depth)
+    results = bulk_maintenance(path, dry_run=dry_run, max_depth=max_depth)
     total = len(results)
     if total == 0:
         console.print("[yellow]No Python projects found[/yellow]")
@@ -191,41 +195,53 @@ def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
         console.print("\n[green]Upgrade complete![/green]")
 
 
+def _print_file_changes(changes: list, dry_run: bool, verb: str) -> None:
+    assert changes is not None, "Changes must not be None"
+    assert verb in ["update", "create"], "Verb must be 'update' or 'create'"
+
+    past = "updated" if verb == "update" else "created"
+    would = "Would update" if verb == "update" else "Would create"
+    header = (
+        f"[yellow]{would} {len(changes)} file(s):[/yellow]\n"
+        if dry_run
+        else f"[green]{past.capitalize()} {len(changes)} file(s):[/green]\n"
+    )
+    console.print(header)
+    mark = "[green]✓[/green]" if verb == "update" else "[green]+[/green]"
+    for change in changes:
+        icon = "[yellow]~[/yellow]" if dry_run else mark
+        console.print(f"  {icon} {change.path}")
+
+
 def _upgrade_single(path: Path, dry_run: bool) -> None:
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    from scaffold.core import upgrade_project
+    from scaffold.core import apply_changes, ensure_prek_hooks, plan_upgrade
 
     console.print(f"[bold]Upgrading project at:[/bold] {path}\n")
     if dry_run:
         console.print("[yellow]Dry run mode - no files will be modified[/yellow]\n")
     try:
-        changes = upgrade_project(path, dry_run=dry_run)
-        if not changes:
-            console.print("[green]✓ Project is already up to date![/green]")
-            return
-        label = (
-            f"[yellow]Would update {len(changes)} file(s):[/yellow]\n"
-            if dry_run
-            else f"[green]Updated {len(changes)} file(s):[/green]\n"
-        )
-        console.print(label)
-        for file in changes:
-            console.print(f"  {'[yellow]~[/yellow]' if dry_run else '[green]✓[/green]'} {file}")
-        console.print(
-            "\n[dim]Run without --dry-run to apply changes[/dim]"
-            if dry_run
-            else "\n[green]Upgrade complete![/green]"
-        )
+        changes = plan_upgrade(path)
     except Exception as e:
         console.print(f"[red]✗ Upgrade failed: {e}[/red]")
         raise
+    if not changes:
+        console.print("[green]✓ Project is already up to date![/green]")
+        return
+    if not dry_run:
+        apply_changes(path, changes)
+        ensure_prek_hooks(path)
+    _print_file_changes(changes, dry_run, "update")
+    console.print(
+        "\n[dim]Run without --dry-run to apply changes[/dim]"
+        if dry_run
+        else "\n[green]Upgrade complete![/green]"
+    )
 
 
-def _execute_bulk(
-    command: str, projects: list, storage: ResultStorage, cached_results_map: dict, force: bool
-) -> tuple[list, int, int, int]:
+def _execute_bulk(command: str, projects: list, storage: ResultStorage) -> list:
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
     assert projects is not None, "Projects must not be None"
 
@@ -234,83 +250,73 @@ def _execute_bulk(
     from scaffold.core import _run_command_on_repo
 
     results: list = []
-    cached_count = passed_count = failed_count = 0
     with ProcessPoolExecutor() as executor:
         futures = {
-            executor.submit(_run_command_on_repo, project, command, 600, storage, force): project
+            executor.submit(_run_command_on_repo, project, command, 600): project
             for project in projects
         }
         for future in as_completed(futures):
             try:
                 result = future.result()
-                cached = cached_results_map.get(str(result.repo_path))
-                is_cached = cached and result.timestamp == cached.timestamp and not force
-                if not is_cached:
-                    storage.save_result(result)
-                else:
-                    cached_count += 1
+                storage.save_result(result)
                 results.append(result)
-                if result.exit_code == 0:
-                    passed_count += 1
-                    status_icon = "[green]✓[/green]"
-                else:
-                    failed_count += 1
-                    status_icon = "[red]✗[/red]"
-                cached_str = " [dim](cached)[/dim]" if is_cached else ""
-                console.print(f"{status_icon} {result.repo_name}{cached_str}")
+                icon = "[green]✓[/green]" if result.exit_code == 0 else "[red]✗[/red]"
+                console.print(f"{icon} {result.repo_name}")
             except Exception as e:
                 project = futures[future]
                 console.print(f"[red]Error in {project.name}: {e}[/red]")
-    return results, cached_count, passed_count, failed_count
+    return results
 
 
-def _print_bulk_summary(
-    command: str,
-    results: list,
-    storage: ResultStorage,
-    cached_count: int,
-    passed_count: int,
-    failed_count: int,
-) -> None:
+def _partition_by_freshness(
+    projects: list, command: str, storage: ResultStorage
+) -> tuple[list, list]:
+    assert projects, "Projects must not be empty"
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert results is not None, "Results must not be None"
 
-    label = "Test" if command == "pytest" else "Prek"
-    total_label = "tested" if command == "pytest" else "checked"
-    console.print(f"\n[bold]{label} Results:[/bold]")
-    console.print(f"  Total {total_label}: {len(results)}")
-    if cached_count > 0:
-        console.print(f"  [dim]📦 Cached: {cached_count} (unchanged since last run)[/dim]")
-    console.print(f"  [green]✓[/green] Passed: {passed_count}")
-    if failed_count > 0:
-        console.print(f"  [red]✗[/red] Failed: {failed_count}\n")
-        console.print("[bold]Failed repositories:[/bold]")
-        for result in results:
-            if result.exit_code != 0:
-                console.print(f"  [red]✗[/red] {result.repo_name} (exit {result.exit_code})")
-    else:
-        console.print()
-    console.print(f"[dim]Results saved to {storage.status_file}[/dim]")
+    from scaffold.core import _get_latest_file_mtime
+
+    latest = storage.get_latest_by_repo(command)
+    fresh: list = []
+    stale: list = []
+    for project in projects:
+        cached = latest.get(str(project))
+        if cached and cached.timestamp > _get_latest_file_mtime(project):
+            fresh.append(cached)
+        else:
+            stale.append(project)
+    return fresh, stale
 
 
-def _run_bulk_interactive(command: str, path: Path, max_depth: int, force: bool) -> None:
-    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert path is not None and path.exists(), "Path must exist"
+def _collect_status(
+    projects: list, commands: list, storage: ResultStorage, use_cache: bool
+) -> list:
+    assert projects, "Projects must not be empty"
+    assert commands, "Commands must not be empty"
+
+    results: list = []
+    for command in commands:
+        if use_cache:
+            fresh, stale = _partition_by_freshness(projects, command, storage)
+        else:
+            fresh, stale = [], projects
+        if stale:
+            console.print(f"[bold]Running {command}...[/bold]")
+            results.extend(_execute_bulk(command, stale, storage))
+        results.extend(fresh)
+    return results
+
+
+def _find_projects(roots: list, max_depth: int) -> list:
+    assert roots, "Roots must not be empty"
+    assert max_depth > 0, "Max depth must be positive"
 
     from scaffold.core import find_python_projects
 
-    console.print(f"[bold]Running {command} on all projects in:[/bold] {path}\n")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-    projects = find_python_projects(path, max_depth)
-    if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
-        return
-    storage = ResultStorage()
-    cached_results_map = storage.get_latest_by_repo(command) if not force else {}
-    results, cached_count, passed_count, failed_count = _execute_bulk(
-        command, projects, storage, cached_results_map, force
-    )
-    _print_bulk_summary(command, results, storage, cached_count, passed_count, failed_count)
+    found: set = set()
+    for root in roots:
+        found.update(find_python_projects(root, max_depth))
+    return sorted(found)
 
 
 @app.callback()
@@ -319,9 +325,9 @@ def main(
         False, "--version", "-v", callback=version_callback, is_eager=True, help="Show version"
     ),
 ) -> None:
-    """Scaffold CLI - Create Python projects with opinionated defaults."""
+    """Scaffold CLI - Keep Python repos current with opinionated tooling."""
     assert app is not None, "Typer app must be initialized"
-    assert _version is None or isinstance(_version, bool), "Version must be None or boolean"
+    assert app.registered_commands, "App must expose commands"
 
 
 @app.command()
@@ -332,42 +338,36 @@ def init(
     description: str | None = typer.Option(None, "--description", "-d", help="Project description"),
     python_version: str = typer.Option("3.12", "--python", "-p", help="Python version"),
     no_git_init: bool = typer.Option(False, "--no-git", help="Skip git initialization"),
+    with_llms: bool = typer.Option(False, "--llms", help="Include an llms.txt file"),
+    with_mcp: bool = typer.Option(False, "--mcp", help="Include an MCP server"),
+    with_skill: bool = typer.Option(False, "--skill", help="Include a Claude Code Agent Skill"),
+    auto_update: bool = typer.Option(
+        False, "--auto-update", help="Include a workflow that PRs scaffold updates on a schedule"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without creating"),
 ) -> None:
     """Create a new Python project with everything configured.
 
     Automatically sets up dependencies, pre-commit hooks, tests, and git.
     Opens your editor when ready - no manual setup required!
+
+    The llms.txt, MCP server, Agent Skill, and scheduled scaffold-update
+    workflow are opt-in via --llms, --mcp, --skill, and --auto-update.
     """
-    assert project_name is not None, "Project name must be provided"
-    assert isinstance(dry_run, bool), "Dry run must be boolean"
+    assert project_name, "Project name must be provided"
+    assert python_version, "Python version must be provided"
 
-    package_name = project_name.replace("-", "_")
-    reserved_names = {"test", "tests", "src", "lib", "data", "docs", "setup", "build", "dist"}
-    if package_name in reserved_names:
-        console.print(
-            f"[red]✗ Cannot use '{project_name}' - conflicts with Python/common module names[/red]"
-        )
-        console.print(
-            f"[dim]Try: {project_name}-app, my-{project_name}, {project_name}-cli, etc.[/dim]"
-        )
-        raise typer.Exit(1)
-
-    if author is None:
-        author = _get_git_config("user.name") or "Unknown"
-    if email is None:
-        email = _get_git_config("user.email")
-    if description is None:
-        description = f"Python project: {project_name}"
-
-    config = ProjectConfig(
-        name=project_name,
-        type=ProjectType.PYTHON,
-        author=author,
-        email=email,
-        description=description,
-        python_version=python_version,
-        git_init=not no_git_init,
+    config = _build_init_config(
+        project_name,
+        author,
+        email,
+        description,
+        python_version,
+        no_git_init,
+        with_llms=with_llms,
+        with_mcp=with_mcp,
+        with_skill=with_skill,
+        with_auto_update=auto_update,
     )
     output_path = Path.cwd() / project_name
 
@@ -383,39 +383,8 @@ def init(
 
 
 @app.command()
-def check(
-    path: Path = typer.Option(Path.cwd(), help="Project path to check"),
-    recursive: bool = typer.Option(
-        False, "--recursive", "-r", help="Check all projects in directory tree"
-    ),
-    max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum directory depth for recursive search"
-    ),
-) -> None:
-    """Check project structure and configuration."""
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
-
-    from scaffold.core import check_project
-
-    if recursive:
-        _check_recursive(path, max_depth)
-        return
-
-    console.print(f"[bold]Checking project at:[/bold] {path}\n")
-    issues = check_project(path)
-    if not issues:
-        console.print("[green]✓ Project structure looks good![/green]")
-        return
-    console.print(f"[yellow]Found {len(issues)} issue(s):[/yellow]\n")
-    for issue in issues:
-        console.print(f"  [red]✗[/red] {issue}")
-    console.print("\n[dim]Run 'sc upgrade' to fix infrastructure files[/dim]")
-
-
-@app.command()
 def upgrade(
-    path: Path = typer.Option(Path.cwd(), help="Project path to upgrade"),
+    path: Path | None = typer.Option(None, help="Project path (cwd, or config roots with -r)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="Upgrade all projects in directory tree"
@@ -424,82 +393,78 @@ def upgrade(
         3, "--max-depth", help="Maximum directory depth for recursive search"
     ),
 ) -> None:
-    """Upgrade project infrastructure files to latest standards."""
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
+    """Upgrade project infrastructure files to latest standards.
+
+    Refreshes scaffold-managed files in place. Use --dry-run to preview which
+    files change first; review the applied changes with 'git diff'.
+    """
+    assert max_depth > 0, "Max depth must be positive"
+    roots = resolve_roots(path, use_config=recursive)
+    assert roots, "Must resolve at least one root"
 
     if recursive:
-        _upgrade_recursive(path, dry_run, max_depth)
+        for root in roots:
+            _upgrade_recursive(root, dry_run, max_depth)
     else:
-        _upgrade_single(path, dry_run)
+        _upgrade_single(roots[0], dry_run)
 
 
 @app.command()
-def test(
-    recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
-    force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
-    path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
-    max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum directory depth for recursive search"
-    ),
+def adopt(
+    path: Path = typer.Option(Path.cwd(), help="Repository path to adopt"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without writing"),
 ) -> None:
-    """Run pytest on current project or all projects with -r."""
+    """Bring an existing repository up to scaffold standards.
+
+    Adds missing infrastructure and standard files without overwriting
+    anything that already exists. Works even if the repo was not created by
+    scaffold. Run 'sc upgrade' afterwards to keep managed files current.
+    """
     assert path is not None, "Path must not be None"
     assert path.exists(), f"Path {path} does not exist"
 
-    if not recursive:
-        console.print("[bold]Running pytest on current project...[/bold]\n")
-        result = subprocess.run(["uv", "run", "pytest"], check=False)
-        raise typer.Exit(result.returncode)
+    from scaffold.core import apply_changes, ensure_prek_hooks, plan_adopt
 
-    _run_bulk_interactive("pytest", path, max_depth, force)
-
-
-@app.command()
-def prek(
-    recursive: bool = typer.Option(False, "--recursive", "-r", help="Run on all projects in tree"),
-    force: bool = typer.Option(False, "--force", "-f", help="Force re-run, ignore cache"),
-    path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
-    max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum directory depth for recursive search"
-    ),
-) -> None:
-    """Run prek on current project or all projects with -r."""
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
-
-    if not recursive:
-        console.print("[bold]Running prek on current project...[/bold]\n")
-        result = subprocess.run(["uv", "run", "prek", "run", "--all-files"], check=False)
-        raise typer.Exit(result.returncode)
-
-    _run_bulk_interactive("prek", path, max_depth, force)
-
-
-@app.command(name="list")
-def list_projects(
-    path: Path = typer.Option(Path.cwd(), help="Root directory to search for projects"),
-    max_depth: int = typer.Option(
-        3, "--max-depth", help="Maximum directory depth for recursive search"
-    ),
-) -> None:
-    """List all Python projects in directory tree."""
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
-
-    from scaffold.core import find_python_projects
-
-    console.print(f"[bold]Finding Python projects in:[/bold] {path}")
-    console.print(f"[dim]Max depth: {max_depth}[/dim]\n")
-    projects = find_python_projects(path, max_depth)
-    if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
+    console.print(f"[bold]Adopting repository at:[/bold] {path}\n")
+    if dry_run:
+        console.print("[yellow]Dry run mode - no files will be written[/yellow]\n")
+    try:
+        changes = plan_adopt(path)
+    except Exception as e:
+        console.print(f"[red]✗ Adopt failed: {e}[/red]")
+        raise
+    if not changes:
+        console.print("[green]✓ Repository already has all standard files![/green]")
         return
-    console.print(f"[bold]Found {len(projects)} project(s):[/bold]\n")
-    for project in projects:
-        relative = project.relative_to(path) if project.is_relative_to(path) else project
-        console.print(f"  • {relative}")
-    console.print("\n[dim]Run 'sc test -r' or 'sc prek -r' to execute commands[/dim]")
+    if not dry_run:
+        apply_changes(path, changes)
+        ensure_prek_hooks(path)
+    _print_file_changes(changes, dry_run, "create")
+    if dry_run:
+        console.print("\n[dim]Run without --dry-run to write files[/dim]")
+    else:
+        console.print("\n[green]Adopt complete![/green]")
+        console.print("[dim]Run 'uv sync', then 'sc upgrade' as needed.[/dim]")
+
+
+@app.command(name="sync-hook-pins", hidden=True)
+def sync_hook_pins_command() -> None:
+    """Copy pinned hook revisions from .pre-commit-config.yaml into the template.
+
+    Maintenance command for the scaffold repo itself: run after 'prek update'
+    so 'sc upgrade' distributes the refreshed pins. Run from the repo root.
+    """
+    from scaffold.core import sync_hook_pins
+
+    config = Path(".pre-commit-config.yaml")
+    template = Path("src/scaffold/templates/base/.pre-commit-config.yaml.j2")
+    assert config.exists(), "Run this from a repo with a .pre-commit-config.yaml"
+    assert template.exists(), "Run this from the scaffold repo root"
+
+    if sync_hook_pins(config, template):
+        console.print("[green]✓ Synced hook pins into the template[/green]")
+    else:
+        console.print("[green]✓ Template hook pins already current[/green]")
 
 
 def _print_results_by_repo(results: list) -> None:
@@ -566,42 +531,82 @@ def _print_detailed_results(results: list) -> None:
         console.print()
 
 
+def _rerun_failed(projects: list, storage: ResultStorage) -> list:
+    assert projects, "Projects must not be empty"
+    assert storage is not None, "Storage must not be None"
+
+    path_by_str = {str(project): project for project in projects}
+    results: list = []
+    for command in ("pytest", "prek"):
+        latest = storage.get_latest_by_repo(command)
+        failed = [
+            path_by_str[repo]
+            for repo, result in latest.items()
+            if repo in path_by_str and result.exit_code != 0
+        ]
+        if not failed:
+            continue
+        console.print(f"[bold]Re-running failed {command}...[/bold]")
+        results.extend(_execute_bulk(command, failed, storage))
+    return results
+
+
+def _status_results(
+    projects: list, storage: ResultStorage, no_cache: bool, rerun_failed: bool
+) -> list:
+    assert projects, "Projects must not be empty"
+    assert storage is not None, "Storage must not be None"
+
+    if rerun_failed:
+        return _rerun_failed(projects, storage)
+    return _collect_status(projects, ["pytest", "prek"], storage, use_cache=not no_cache)
+
+
 @app.command()
 def status(
-    command: str | None = typer.Option(None, help="Filter by command (pytest or prek)"),
-    path: Path = typer.Option(Path.cwd(), help="Filter by repos in this directory"),
-    detailed: bool = typer.Option(False, "--detailed", "-d", help="Show detailed output"),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Regenerate: rerun pytest + prek on every repo"
+    ),
+    rerun_failed: bool = typer.Option(
+        False, "--rerun-failed", help="Rerun only the repos that last failed"
+    ),
+    detailed: bool = typer.Option(False, "--detailed", "-d", help="Show full output"),
+    path: Path | None = typer.Option(None, help="Search a specific dir (overrides config roots)"),
+    max_depth: int = typer.Option(3, "--max-depth", help="Maximum directory depth for search"),
 ) -> None:
-    """Display test/prek results for projects in current directory."""
-    assert command is None or command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
-    assert isinstance(detailed, bool), "Detailed must be boolean"
+    """Show the pytest/prek result for each of your projects.
 
-    from scaffold.core import find_python_projects
+    With no flags, reruns only the repos whose files changed since their last
+    recorded result and reuses the cache for the rest, so the status is always
+    current but unchanged repos stay instant. --no-cache reruns every repo
+    regardless; --rerun-failed reruns only the repos that last failed. Searches
+    the roots in ~/.scaffold/config.json (or the current directory), or --path.
+    """
+    assert max_depth > 0, "Max depth must be positive"
+    roots = resolve_roots(path, use_config=True)
+    assert roots, "Must resolve at least one root"
 
-    storage = ResultStorage()
-    if not storage.status_file.exists():
-        console.print("[yellow]No results found. Run 'sc test -r' or 'sc prek -r' first.[/yellow]")
+    projects = _find_projects(roots, max_depth)
+    roots_label = ", ".join(str(root) for root in roots)
+    if not projects:
+        console.print(f"[yellow]No Python projects found under {roots_label}[/yellow]")
         return
 
-    projects = find_python_projects(path, max_depth=3)
-    project_paths = {str(p) for p in projects}
-    all_results = storage.load_results(command=command) if command else storage.load_results()
-    results = [r for r in all_results if r.repo_path in project_paths]
+    storage = ResultStorage()
+    results = _status_results(projects, storage, no_cache, rerun_failed)
 
     if not results:
         console.print(
-            f"[yellow]No results found for projects in {path}[/yellow]\n"
-            f"[dim]Run 'sc test -r' or 'sc prek -r' in this directory[/dim]"
+            f"[yellow]No results yet for projects under {roots_label}[/yellow]\n"
+            f"[dim]Run 'sc status --no-cache' to record the current results[/dim]"
         )
         return
 
-    console.print(f"[bold]Bulk Command Results[/bold] - {path}")
-    if command:
-        console.print(f"[dim]Filtered by: {command}[/dim]")
-    console.print(f"[dim]Total results: {len(results)}[/dim]\n")
+    console.print(f"\n[bold]Status[/bold] - {roots_label}\n")
     _print_results_by_repo(results)
     if detailed:
         _print_detailed_results(results)
+    console.print(f"\n[dim]Status stored in {storage.status_file}[/dim]")
 
 
 if __name__ == "__main__":

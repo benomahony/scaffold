@@ -1,11 +1,12 @@
 import os
+import re
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
 
-from scaffold.models import ProjectConfig
-from scaffold.storage import CommandResult, ResultStorage
+from scaffold.models import FileChange, ProjectConfig
+from scaffold.storage import CommandResult
 from scaffold.template_engine import TemplateEngine
 
 
@@ -19,7 +20,13 @@ def preview_project(config: ProjectConfig, output_path: Path) -> list[str]:
     assert output_path.is_absolute(), "Output path must be absolute"
 
     engine = TemplateEngine()
-    templates = engine.get_template_files(config.type)
+    templates = engine.get_template_files(
+        config.type,
+        with_llms=config.with_llms,
+        with_mcp=config.with_mcp,
+        with_skill=config.with_skill,
+        with_auto_update=config.with_auto_update,
+    )
     empty_files = engine.get_empty_files()
 
     all_files = []
@@ -68,9 +75,19 @@ def render_and_write_templates(
         "license": config.license,
         "year": datetime.now().year,
         "project_type": config.type.value,
+        "with_llms": config.with_llms,
+        "with_mcp": config.with_mcp,
+        "with_skill": config.with_skill,
+        "with_auto_update": config.with_auto_update,
     }
 
-    templates = engine.get_template_files(config.type)
+    templates = engine.get_template_files(
+        config.type,
+        with_llms=config.with_llms,
+        with_mcp=config.with_mcp,
+        with_skill=config.with_skill,
+        with_auto_update=config.with_auto_update,
+    )
     assert len(templates) > 0, "Must have templates to render"
 
     for template_path, output_file in templates:
@@ -127,40 +144,6 @@ def setup_project_environment(project_path: Path) -> None:
         )
 
 
-def check_project(project_path: Path) -> list[str]:
-    assert project_path is not None, "Project path must not be None"
-    assert project_path.exists(), "Project path must exist"
-
-    issues = []
-
-    pyproject_file = project_path / "pyproject.toml"
-    if not pyproject_file.exists():
-        issues.append("Missing pyproject.toml")
-        return issues
-
-    precommit_file = project_path / ".pre-commit-config.yaml"
-    if not precommit_file.exists():
-        issues.append("Missing .pre-commit-config.yaml")
-
-    src_dir = project_path / "src"
-    if not src_dir.exists():
-        issues.append("Missing src/ directory")
-
-    tests_dir = project_path / "tests"
-    if not tests_dir.exists():
-        issues.append("Missing tests/ directory")
-
-    git_dir = project_path / ".git"
-    if not git_dir.exists():
-        issues.append("Not a git repository (run: git init)")
-
-    precommit_hook = project_path / ".git" / "hooks" / "pre-commit"
-    if git_dir.exists() and not precommit_hook.exists():
-        issues.append("Prek hooks not installed (run: uv run prek install)")
-
-    return issues
-
-
 def _load_project_metadata(project_path: Path) -> dict[str, str]:
     assert project_path is not None, "Project path must not be None"
     assert project_path.exists(), "Project path must exist"
@@ -193,57 +176,180 @@ def _load_project_metadata(project_path: Path) -> dict[str, str]:
     }
 
 
-def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
-    assert project_path is not None, "Project path must not be None"
-    assert project_path.exists(), "Project path must exist"
+_CORE_TEMPLATES = [
+    ("base/.pre-commit-config.yaml.j2", ".pre-commit-config.yaml"),
+    ("base/zensical.toml.j2", "zensical.toml"),
+    ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
+]
 
-    metadata = _load_project_metadata(project_path)
+_ENSURE_TEMPLATES = [
+    ("base/dddlint.yaml.j2", "dddlint.yaml"),
+]
 
-    engine = TemplateEngine()
-    context = {
+_OPTIONAL_TEMPLATES = [
+    ("base/llms.txt.j2", "llms.txt"),
+    ("python/mcp_server.py.j2", "src/{package_name}/mcp_server.py"),
+    ("python/SKILL.md.j2", ".skills/{package_name}/SKILL.md"),
+    ("base/.github_workflows_scaffold-update.yml.j2", ".github/workflows/scaffold-update.yml"),
+]
+
+_ADOPT_TEMPLATES = [
+    ("base/pyproject.toml.j2", "pyproject.toml"),
+    ("base/.gitignore.j2", ".gitignore"),
+    ("base/.python-version.j2", ".python-version"),
+    ("base/README.md.j2", "README.md"),
+    ("base/__init__.py.j2", "src/{package_name}/__init__.py"),
+    *_CORE_TEMPLATES,
+    *_ENSURE_TEMPLATES,
+]
+
+_ADOPT_EMPTY_FILES = ["src/{package_name}/py.typed", "tests/__init__.py"]
+
+
+def _render_context(metadata: dict[str, str]) -> dict:
+    assert metadata is not None, "Metadata must not be None"
+    assert "package_name" in metadata, "Metadata must include package_name"
+
+    return {
         **metadata,
         "email": None,
         "license": "MIT",
         "year": datetime.now().year,
         "project_type": "python",
+        "with_llms": False,
+        "with_mcp": False,
+        "with_skill": False,
+        "with_auto_update": False,
     }
 
+
+def _plan_change(
+    engine: TemplateEngine, context: dict, project_path: Path, target_rel: str, template_path: str
+) -> FileChange | None:
+    assert target_rel is not None, "Target must not be None"
+    assert template_path is not None, "Template path must not be None"
+
+    target = project_path / target_rel
+    new_content = engine.render_template(template_path, context)
+    if target.exists() and target.read_text() == new_content:
+        return None
+    action = "modify" if target.exists() else "create"
+    return FileChange(path=target_rel, action=action, new_content=new_content)
+
+
+def plan_upgrade(project_path: Path) -> list[FileChange]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    metadata = _load_project_metadata(project_path)
+    engine = TemplateEngine()
+    context = _render_context(metadata)
     package_name = metadata["package_name"]
-    files_to_upgrade = [
-        ("base/.pre-commit-config.yaml.j2", ".pre-commit-config.yaml"),
-        ("base/llms.txt.j2", "llms.txt"),
-        ("base/zensical.toml.j2", "zensical.toml"),
-        ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
-        ("python/mcp_server.py.j2", f"src/{package_name}/mcp_server.py"),
-        ("python/SKILL.md.j2", f".skills/{package_name}/SKILL.md"),
-    ]
 
-    updated_files = []
+    changes: list[FileChange] = []
+    for template_path, output_file in _CORE_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        change = _plan_change(engine, context, project_path, target_rel, template_path)
+        if change is not None:
+            changes.append(change)
 
-    for template_path, output_file in files_to_upgrade:
-        output_path = project_path / output_file
-        content = engine.render_template(template_path, context)
-
-        if output_path.exists() and output_path.read_text() == content:
+    for template_path, output_file in _ENSURE_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        if (project_path / target_rel).exists():
             continue
+        change = _plan_change(engine, context, project_path, target_rel, template_path)
+        if change is not None:
+            changes.append(change)
 
-        if not dry_run:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(content)
+    for template_path, output_file in _OPTIONAL_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        if not (project_path / target_rel).exists():
+            continue
+        change = _plan_change(engine, context, project_path, target_rel, template_path)
+        if change is not None:
+            changes.append(change)
+    return changes
 
-        updated_files.append(output_file)
 
+def apply_changes(project_path: Path, changes: list[FileChange]) -> None:
+    assert project_path is not None, "Project path must not be None"
+    assert changes is not None, "Changes must not be None"
+
+    for change in changes:
+        target = project_path / change.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(change.new_content)
+
+
+def ensure_prek_hooks(project_path: Path) -> None:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    git_dir = project_path / ".git"
+    precommit_hook = git_dir / "hooks" / "pre-commit"
+    if git_dir.exists() and not precommit_hook.exists():
+        subprocess.run(
+            ["uv", "run", "prek", "install"],
+            cwd=project_path,
+            check=True,
+            capture_output=True,
+        )
+
+
+def upgrade_project(project_path: Path, dry_run: bool = False) -> list[str]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    changes = plan_upgrade(project_path)
     if not dry_run:
-        precommit_hook = project_path / ".git" / "hooks" / "pre-commit"
-        if not precommit_hook.exists():
-            subprocess.run(
-                ["uv", "run", "prek", "install"],
-                cwd=project_path,
-                check=True,
-                capture_output=True,
-            )
+        apply_changes(project_path, changes)
+        ensure_prek_hooks(project_path)
+    return [change.path for change in changes]
 
-    return updated_files
+
+def _derive_metadata(project_path: Path) -> dict[str, str]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    if (project_path / "pyproject.toml").exists():
+        return _load_project_metadata(project_path)
+
+    raw_name = project_path.resolve().name
+    project_name = raw_name.lower().replace(" ", "-").replace("_", "-")
+    package_name = project_name.replace("-", "_")
+    assert package_name.isidentifier(), f"Cannot derive a package name from '{raw_name}'"
+    return {
+        "project_name": project_name,
+        "package_name": package_name,
+        "author": "Unknown",
+        "description": f"Python project: {project_name}",
+        "python_version": "3.12",
+    }
+
+
+def plan_adopt(project_path: Path) -> list[FileChange]:
+    assert project_path is not None, "Project path must not be None"
+    assert project_path.exists(), "Project path must exist"
+
+    metadata = _derive_metadata(project_path)
+    engine = TemplateEngine()
+    context = _render_context(metadata)
+    package_name = metadata["package_name"]
+
+    changes: list[FileChange] = []
+    for template_path, output_file in _ADOPT_TEMPLATES:
+        target_rel = output_file.format(package_name=package_name)
+        if (project_path / target_rel).exists():
+            continue
+        content = engine.render_template(template_path, context)
+        changes.append(FileChange(path=target_rel, action="create", new_content=content))
+
+    for empty_file in _ADOPT_EMPTY_FILES:
+        target_rel = empty_file.format(package_name=package_name)
+        if (project_path / target_rel).exists():
+            continue
+        changes.append(FileChange(path=target_rel, action="create", new_content=""))
+    return changes
 
 
 _SKIP_DIRS = {".venv", "venv", "node_modules", "__pycache__", "build", "dist", ".tox"}
@@ -266,11 +372,9 @@ def find_python_projects(root_path: Path, max_depth: int = 3) -> list[Path]:
     return sorted(projects)
 
 
-def bulk_maintenance(
-    root_path: Path, action: str, dry_run: bool = False, max_depth: int = 3
-) -> list[dict]:
+def bulk_maintenance(root_path: Path, dry_run: bool = False, max_depth: int = 3) -> list[dict]:
     assert root_path is not None, "Root path must not be None"
-    assert action in ["check", "upgrade"], "Action must be 'check' or 'upgrade'"
+    assert max_depth > 0, "Max depth must be positive"
 
     projects = find_python_projects(root_path, max_depth)
     results = []
@@ -279,14 +383,9 @@ def bulk_maintenance(
         result = {"project": project_path, "status": "unknown", "details": []}
 
         try:
-            if action == "check":
-                issues = check_project(project_path)
-                result["status"] = "success"
-                result["details"] = issues
-            elif action == "upgrade":
-                changes = upgrade_project(project_path, dry_run=dry_run)
-                result["status"] = "success"
-                result["details"] = changes
+            changes = upgrade_project(project_path, dry_run=dry_run)
+            result["status"] = "success"
+            result["details"] = changes
         except Exception as e:
             result["status"] = "error"
             result["error"] = str(e)
@@ -315,31 +414,26 @@ def _get_git_commit(repo_path: Path) -> str | None:
     return None
 
 
+_MTIME_SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules", ".tox"}
+
+
 def _get_latest_file_mtime(repo_path: Path) -> datetime:
     assert repo_path is not None, "Repo path must not be None"
     assert repo_path.exists(), "Repo path must exist"
 
     latest_mtime = 0.0
-
     for root, _dirs, files in repo_path.walk():
-        # Skip common directories that don't affect test results
-        skip_dirs = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules", ".tox"}
         root_name = root.name
-        if root_name in skip_dirs or root_name.startswith("."):
+        if root_name in _MTIME_SKIP_DIRS or root_name.startswith("."):
             continue
-
         for file in files:
             if file.endswith((".pyc", ".pyo")):
                 continue
-
-            file_path = root / file
             try:
-                mtime = file_path.stat().st_mtime
-                if mtime > latest_mtime:
-                    latest_mtime = mtime
-            except (OSError, PermissionError):
+                mtime = (root / file).stat().st_mtime
+            except OSError:
                 continue
-
+            latest_mtime = max(latest_mtime, mtime)
     return datetime.fromtimestamp(latest_mtime) if latest_mtime > 0 else datetime.now()
 
 
@@ -348,16 +442,17 @@ def _get_clean_env() -> dict[str, str]:
     assert os.environ is not None, "os.environ must be available"
 
     env = os.environ.copy()
-    assert isinstance(env, dict), "Environment must be a dictionary"
     env.pop("VIRTUAL_ENV", None)
     env.pop("CONDA_PREFIX", None)
+    assert "VIRTUAL_ENV" not in env, "VIRTUAL_ENV must be stripped"
+    assert "CONDA_PREFIX" not in env, "CONDA_PREFIX must be stripped"
     return env
 
 
 def _execute_command(cmd: list[str], repo_path: Path, timeout: int) -> tuple[int, float, str, str]:
     """Execute command and return exit code, duration, stdout, stderr."""
-    assert cmd is not None and len(cmd) > 0, "Command must not be empty"
-    assert repo_path is not None, "Repo path must not be None"
+    assert cmd, "Command must not be empty"
+    assert timeout > 0, "Timeout must be positive"
 
     env = _get_clean_env()
     start_time = time.time()
@@ -379,26 +474,11 @@ def _execute_command(cmd: list[str], repo_path: Path, timeout: int) -> tuple[int
         return -2, duration, "", f"Command timed out after {timeout} seconds"
 
 
-def _run_command_on_repo(
-    repo_path: Path,
-    command: str,
-    timeout: int = 600,
-    storage: ResultStorage | None = None,
-    force: bool = False,
-) -> CommandResult:
+def _run_command_on_repo(repo_path: Path, command: str, timeout: int = 600) -> CommandResult:
     assert repo_path is not None, "Repo path must not be None"
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
 
     repo_name = repo_path.name
-
-    # Check cache if not forcing re-run
-    if not force and storage:
-        cached = storage.get_latest_by_repo(command).get(str(repo_path))
-        if cached:
-            latest_mtime = _get_latest_file_mtime(repo_path)
-            if cached.timestamp > latest_mtime:
-                return cached
-
     git_commit = _get_git_commit(repo_path)
 
     cmd = ["uv", "run", command]
@@ -418,3 +498,61 @@ def _run_command_on_repo(
         stderr=stderr,
         git_commit=git_commit,
     )
+
+
+_HOOK_REPO_PATTERN = r"^\s*- repo:\s*(\S+)\s*$"
+_HOOK_REV_PATTERN = r"^(\s*rev:\s*)(\S+)(.*)$"
+
+_LIVE_PRECOMMIT = Path(".pre-commit-config.yaml")
+_TEMPLATE_PRECOMMIT = Path("src/scaffold/templates/base/.pre-commit-config.yaml.j2")
+
+
+def _load_hook_revs(text: str) -> dict[str, str]:
+    assert text, "Config text must not be empty"
+    assert "repo:" in text, "Config must define at least one repo"
+
+    revs: dict[str, str] = {}
+    repo: str | None = None
+    for line in text.splitlines():
+        repo_match = re.match(_HOOK_REPO_PATTERN, line)
+        if repo_match:
+            repo = repo_match.group(1)
+            continue
+        rev_match = re.match(_HOOK_REV_PATTERN, line)
+        if rev_match and repo is not None and repo != "local":
+            revs[repo] = rev_match.group(2)
+            repo = None
+    return revs
+
+
+def _apply_hook_revs(text: str, revs: dict[str, str]) -> str:
+    assert text, "Template text must not be empty"
+    assert revs, "Must have at least one revision to apply"
+
+    out: list[str] = []
+    repo: str | None = None
+    for line in text.splitlines(keepends=True):
+        repo_match = re.match(_HOOK_REPO_PATTERN, line)
+        if repo_match:
+            repo = repo_match.group(1)
+        rev_match = re.match(_HOOK_REV_PATTERN, line)
+        if rev_match and repo in revs:
+            line = f"{rev_match.group(1)}{revs[repo]}{rev_match.group(3)}\n"
+            repo = None
+        out.append(line)
+    return "".join(out)
+
+
+def sync_hook_pins(config_path: Path | None = None, template_path: Path | None = None) -> bool:
+    config = config_path or _LIVE_PRECOMMIT
+    template = template_path or _TEMPLATE_PRECOMMIT
+    assert config.exists(), "Live .pre-commit-config.yaml must exist"
+    assert template.exists(), "Template .pre-commit-config.yaml.j2 must exist"
+
+    revs = _load_hook_revs(config.read_text())
+    original = template.read_text()
+    updated = _apply_hook_revs(original, revs)
+    if updated == original:
+        return False
+    template.write_text(updated)
+    return True

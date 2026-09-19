@@ -15,7 +15,7 @@ def example_function(name: str) -> str:
         assert result == "Hello, World!"
         ```
     """
-    assert name is not None, "Name must not be None"
-    assert isinstance(name, str), "Name must be a string"
+    assert name, "Name must not be empty"
+    assert "\n" not in name, "Name must be a single line"
 
     return f"Hello, {name}!"

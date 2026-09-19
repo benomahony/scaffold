@@ -8,7 +8,7 @@ runner = CliRunner()
 pytestmark = pytest.mark.unit
 
 
-def test_hello():
+def test_cli_greets_the_given_name():
     result = runner.invoke(app, ["World"])
     assert result.exit_code == 0
     assert "Hello, World!" in result.stdout

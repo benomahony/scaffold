@@ -26,7 +26,7 @@ repos:
         args: [--maxkb=1000]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: v0.49.1
     hooks:
       - id: markdownlint
         args:
@@ -44,13 +44,13 @@ repos:
           ]
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.12.1
+    rev: v4.18.1
     hooks:
       - id: commitizen
         stages: [commit-msg]
 
   - repo: https://github.com/benomahony/nasa-lsp
-    rev: v0.1.7
+    rev: v0.1.14
     hooks:
       - id: nasa-lsp
         exclude: ^tests/
@@ -78,7 +78,7 @@ repos:
         require_serial: true
       - id: vulture
         name: vulture
-        entry: uv run --frozen vulture src/scaffold/ --exclude "**/models.py" --min-confidence 80
+        entry: uv run --frozen vulture src/scaffold/ --min-confidence 60 --ignore-decorators "@app.command,@app.callback,@field_validator" --ignore-names "cls,duration_seconds"
         language: system
         types: [python]
         pass_filenames: false
@@ -94,6 +94,20 @@ repos:
         entry: uv run --frozen cliqa analyze scaffold
         language: system
         files: ^(pyproject\.toml|src/.*\.py)$
+        pass_filenames: false
+        require_serial: true
+      - id: dddlint
+        name: dddlint
+        entry: uv run --frozen dddlint lint src/scaffold
+        language: system
+        files: ^src/scaffold/.*\.py$
+        pass_filenames: false
+        require_serial: true
+      - id: testdesiderata
+        name: testdesiderata
+        entry: uv run --frozen testdesiderata tests
+        language: system
+        files: ^tests/.*\.py$
         pass_filenames: false
         require_serial: true
       - id: deptry

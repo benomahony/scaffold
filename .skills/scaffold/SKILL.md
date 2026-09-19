@@ -41,15 +41,16 @@ result = example_function("World")
 
 ## Key Features
 
-- Creates Python projects with modern tooling (uv, ruff, basedpyright, pytest, prek)
-- Automatically runs: uv sync, prek install, prek run (2x for formatting)
-- Generates .pre-commit-config.yaml (runs with prek for 10x speed)
-- Includes GitHub Actions for CI/CD and PyPI publishing
-- Generates llms.txt, zensical.toml, MCP server, and Agent Skills
+- Maintains existing repos: `sc status`, `sc upgrade`, `sc adopt`
+- Roots in `~/.scaffold/config.json` (`{"roots": ["...", "..."]}`) let `sc status` scan them from anywhere; `sc init` auto-tracks each new project as a root
+- `sc upgrade --dry-run` previews which files change; review applied changes with git
+- `sc adopt` onboards repos not created by scaffold, never clobbering existing files
+- `sc status` reruns only repos changed since their last pytest/prek result (unchanged ones served from cache); `--no-cache` reruns every repo, `--rerun-failed` reruns only the repos that last failed
+- Creates new projects with modern tooling (uv, ruff, basedpyright, pytest, prek)
+- Generates GitHub Actions CI and zensical.toml docs
+- llms.txt, MCP server, and Agent Skill are opt-in via `sc init --llms/--mcp/--skill`
 
 ## Resources
 
 - Check docs/index.md for comprehensive documentation
-- Check llms.txt for LLM-friendly documentation summary
 - Check src/scaffold/ for implementation details
-- Check CLEANUP.md for current cleanup checklist

@@ -1,14 +1,19 @@
 # Scaffold
 
-Scaffold new Python projects with opinionated defaults via the `sc` CLI.
+Keep Python repos current with opinionated tooling via the `sc` CLI.
+
+`sc` maintains a fleet of repos: refresh infrastructure files to the latest standards, adopt repos that were not created by scaffold, and check the pytest/prek status of everything at once. It also creates new projects from scratch when you need one.
 
 ```bash
-sc init my-project
+sc status            # test/prek status per repo (reruns only changed repos)
+sc upgrade           # refresh infrastructure files (review with git diff)
+sc adopt             # bring an existing repo up to standard
+sc init my-project   # start a new project
 ```
 
 ## What you get
 
-Every project created by `sc` includes:
+Every project scaffold manages includes:
 
 - `uv` for dependency management
 - `ruff` for linting and formatting

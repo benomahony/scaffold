@@ -8,6 +8,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_scaffold_python_project(tmp_path: Path) -> None:
+    """Init builds a complete project, installs it, and reports success."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -49,7 +50,6 @@ def test_scaffold_python_project(tmp_path: Path) -> None:
         assert (project_path / ".github" / "workflows" / "ci.yml").exists(), (
             "GitHub Actions workflow must exist"
         )
-        assert (project_path / "llms.txt").exists(), "llms.txt must exist"
         assert (project_path / "zensical.toml").exists(), "zensical.toml must exist"
         assert (project_path / "src").exists(), "src directory must exist"
         assert (project_path / "tests").exists(), "tests directory must exist"
@@ -60,11 +60,12 @@ def test_scaffold_python_project(tmp_path: Path) -> None:
         )
 
         package_name = project_name.replace("-", "_")
-        assert (project_path / "src" / package_name / "mcp_server.py").exists(), (
-            "MCP server must exist"
+        assert not (project_path / "llms.txt").exists(), "llms.txt must be opt-in"
+        assert not (project_path / "src" / package_name / "mcp_server.py").exists(), (
+            "MCP server must be opt-in"
         )
-        assert (project_path / ".skills" / package_name / "SKILL.md").exists(), (
-            "Agent Skill must exist"
+        assert not (project_path / ".skills" / package_name / "SKILL.md").exists(), (
+            "Agent Skill must be opt-in"
         )
 
     finally:
@@ -72,6 +73,7 @@ def test_scaffold_python_project(tmp_path: Path) -> None:
 
 
 def test_scaffold_python_project_with_docs(tmp_path: Path) -> None:
+    """Init wires up the environment, git, and pre-commit hooks."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -116,51 +118,8 @@ def test_scaffold_python_project_with_docs(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_scaffold_check_command(tmp_path: Path) -> None:
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    project_name = "test-check-command"
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                project_name,
-                "--author",
-                "Test Author",
-                "--description",
-                "Test check command",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-        )
-
-        assert result.returncode == 0, f"Scaffold command must succeed. Error:\n{result.stderr}"
-
-        project_path = tmp_path / project_name
-
-        check_result = subprocess.run(
-            ["uv", "run", "scaffold", "check", "--path", str(project_path)],
-            capture_output=True,
-            text=True,
-        )
-
-        assert check_result.returncode == 0, "Check command must succeed"
-        assert "Project structure looks good" in check_result.stdout
-
-    finally:
-        os.chdir(original_cwd)
-
-
 def test_scaffold_upgrade_command(tmp_path: Path) -> None:
+    """Upgrade rewrites a stale managed file back to the template."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -212,89 +171,50 @@ def test_scaffold_upgrade_command(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_check_recursive(tmp_path: Path) -> None:
-    """Test recursive check finds and checks multiple projects."""
+def test_scaffold_adopt_command(tmp_path: Path) -> None:
+    """Test adopt onboards an existing repo without clobbering files."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
-    original_cwd = Path.cwd()
+    repo = tmp_path / "legacy"
+    repo.mkdir()
+    (repo / "main.py").write_text("print('hi')\n")
 
-    try:
-        os.chdir(tmp_path)
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "project1",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test recursive check",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
+    result = subprocess.run(
+        ["uv", "run", "scaffold", "adopt", "--path", str(repo)],
+        capture_output=True,
+        text=True,
+    )
 
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "project2",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test recursive check",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
+    assert result.returncode == 0, f"Adopt command must succeed: {result.stderr}"
+    assert "Adopt complete" in result.stdout, "Must confirm completion"
+    assert (repo / "pyproject.toml").exists(), "Must create pyproject.toml"
+    assert (repo / ".pre-commit-config.yaml").exists(), "Must create pre-commit config"
+    assert (repo / "main.py").read_text() == "print('hi')\n", "Must not touch existing files"
 
-        nested_dir = tmp_path / "nested"
-        nested_dir.mkdir()
-        os.chdir(nested_dir)
 
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "project3",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test recursive check",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
+def test_scaffold_upgrade_dry_run(tmp_path: Path) -> None:
+    """Test upgrade --dry-run lists files without writing them."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
 
-        os.chdir(tmp_path)
+    repo = tmp_path / "dryrepo"
+    repo.mkdir()
+    (repo / "pyproject.toml").write_text(
+        '[project]\nname = "dryrepo"\nrequires-python = ">=3.12"\n'
+        'authors = [{name = "Test"}]\ndescription = "Test"\n'
+    )
 
-        check_result = subprocess.run(
-            ["uv", "run", "scaffold", "check", "--path", str(tmp_path), "-r"],
-            capture_output=True,
-            text=True,
-        )
+    result = subprocess.run(
+        ["uv", "run", "scaffold", "upgrade", "--path", str(repo), "--dry-run"],
+        capture_output=True,
+        text=True,
+    )
 
-        assert check_result.returncode == 0, f"Recursive check must succeed: {check_result.stderr}"
-        assert "project1" in check_result.stdout, "Must find project1"
-        assert "project2" in check_result.stdout, "Must find project2"
-        assert "project3" in check_result.stdout, "Must find project3"
-        assert "3 project(s)" in check_result.stdout, "Must report 3 projects"
-
-    finally:
-        os.chdir(original_cwd)
+    assert result.returncode == 0, f"Upgrade dry-run must succeed: {result.stderr}"
+    assert "Would update" in result.stdout, "Must indicate dry-run summary"
+    assert ".pre-commit-config.yaml" in result.stdout, "Must list the files that would change"
+    assert not (repo / ".pre-commit-config.yaml").exists(), "Dry-run must not write files"
 
 
 def test_upgrade_recursive(tmp_path: Path) -> None:
@@ -402,7 +322,7 @@ def test_upgrade_recursive_dry_run(tmp_path: Path) -> None:
         assert (
             project_name.replace("-", "_") in upgrade_result.stdout
             or project_name in upgrade_result.stdout
-        )
+        ), "Dry-run output must mention the project"
 
         current_content = precommit_file.read_text()
         assert current_content == old_content, "Dry-run must not modify files"
@@ -411,162 +331,39 @@ def test_upgrade_recursive_dry_run(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_recursive_max_depth(tmp_path: Path) -> None:
-    """Test max-depth limits recursive search."""
+def test_ai_extras_opt_in(tmp_path: Path) -> None:
+    """Test llms/mcp/skill extras are off by default and enabled by flags."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "shallow",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test max depth",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        deep_dir = tmp_path / "level1" / "level2" / "level3"
-        deep_dir.mkdir(parents=True)
-        os.chdir(deep_dir)
-
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "deep",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test max depth",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        os.chdir(tmp_path)
-
-        check_result = subprocess.run(
-            ["uv", "run", "scaffold", "check", "--path", str(tmp_path), "-r", "--max-depth", "2"],
-            capture_output=True,
-            text=True,
-        )
-
-        assert check_result.returncode == 0, "Check with max-depth must succeed"
-        assert "shallow" in check_result.stdout, "Must find shallow project"
-        assert "deep" not in check_result.stdout, "Must not find deep project beyond max-depth"
-
-    finally:
-        os.chdir(original_cwd)
-
-
-def test_ai_integration_files(tmp_path: Path) -> None:
-    """Test that AI integration files (llms.txt, MCP, skills) are valid."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    project_name = "test-ai-integration"
+    base = ["uv", "run", "scaffold", "init", "extras-demo", "-a", "Test", "-d", "Demo", "--dry-run"]
     original_cwd = Path.cwd()
 
     try:
         os.chdir(tmp_path)
 
-        result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                project_name,
-                "--author",
-                "Test Author",
-                "--description",
-                "Test AI integration",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
+        default = subprocess.run(base, capture_output=True, text=True)
+        assert default.returncode == 0, f"Default dry-run must succeed: {default.stderr}"
+        assert "llms.txt" not in default.stdout, "llms.txt must be off by default"
+        assert "mcp_server.py" not in default.stdout, "MCP server must be off by default"
+        assert "SKILL.md" not in default.stdout, "Agent Skill must be off by default"
+        assert "scaffold-update.yml" not in default.stdout, "Auto-update must be off by default"
+
+        enabled = subprocess.run(
+            [*base, "--llms", "--mcp", "--skill", "--auto-update"], capture_output=True, text=True
         )
-
-        assert result.returncode == 0, f"Scaffold command must succeed. Error:\n{result.stderr}"
-
-        project_path = tmp_path / project_name
-        package_name = project_name.replace("-", "_")
-
-        llms_txt = project_path / "llms.txt"
-        assert llms_txt.exists(), "llms.txt must exist"
-        llms_content = llms_txt.read_text()
-        assert llms_content.startswith("# test-ai-integration"), (
-            "llms.txt must start with H1 project name"
-        )
-        assert "> Test AI integration" in llms_content, "llms.txt must have description blockquote"
-        assert "## Documentation" in llms_content, "llms.txt must have Documentation section"
-        assert "## AI Integration" in llms_content, "llms.txt must have AI Integration section"
-
-        zensical_toml = project_path / "zensical.toml"
-        assert zensical_toml.exists(), "zensical.toml must exist"
-        zensical_content = zensical_toml.read_text()
-        assert "[project]" in zensical_content, "zensical.toml must have [project] section"
-        assert 'site_name = "test-ai-integration"' in zensical_content, (
-            "zensical.toml must have site_name"
-        )
-        assert "[project.theme]" in zensical_content, "zensical.toml must have theme section"
-
-        mcp_server = project_path / "src" / package_name / "mcp_server.py"
-        assert mcp_server.exists(), "MCP server must exist"
-        mcp_content = mcp_server.read_text()
-        assert "from mcp.server import Server" in mcp_content, "MCP server must import Server"
-        assert "async def list_resources()" in mcp_content, "MCP server must have list_resources"
-        assert "async def read_resource(" in mcp_content, "MCP server must have read_resource"
-
-        skill_md = project_path / ".skills" / package_name / "SKILL.md"
-        assert skill_md.exists(), "SKILL.md must exist"
-        skill_content = skill_md.read_text()
-        assert skill_content.startswith("---\n"), "SKILL.md must start with YAML frontmatter"
-        assert "name: test-ai-integration" in skill_content, (
-            "SKILL.md must have name in frontmatter"
-        )
-        assert "description:" in skill_content, "SKILL.md must have description in frontmatter"
-        assert "# test-ai-integration Skill" in skill_content, "SKILL.md must have H1 heading"
-
-        workflow = project_path / ".github" / "workflows" / "ci.yml"
-        assert workflow.exists(), "GitHub Actions workflow must exist"
-        workflow_content = workflow.read_text()
-        assert "name: CI and Publish" in workflow_content, "Workflow must have name"
-        assert "jobs:" in workflow_content, "Workflow must have jobs"
-        assert "test:" in workflow_content, "Workflow must have test job"
-        assert "publish:" in workflow_content, "Workflow must have publish job"
-        assert "docs:" in workflow_content, "Workflow must have docs job"
-        assert "uv run zensical build" in workflow_content, "Docs job must build with zensical"
-
-        pyproject = project_path / "pyproject.toml"
-        pyproject_content = pyproject.read_text()
-        assert "zensical>=" in pyproject_content, "pyproject.toml must have zensical in dev deps"
-        assert "mcp>=" in pyproject_content, "pyproject.toml must have mcp optional dep"
-        assert "bump-my-version>=" in pyproject_content, "pyproject.toml must have bump-my-version"
+        assert enabled.returncode == 0, f"Flagged dry-run must succeed: {enabled.stderr}"
+        assert "llms.txt" in enabled.stdout, "--llms must add llms.txt"
+        assert "mcp_server.py" in enabled.stdout, "--mcp must add the MCP server"
+        assert "SKILL.md" in enabled.stdout, "--skill must add the Agent Skill"
+        assert "scaffold-update.yml" in enabled.stdout, "--auto-update must add the update workflow"
 
     finally:
         os.chdir(original_cwd)
 
 
-def test_bulk_test_command(tmp_path: Path) -> None:
-    """Test test -r command runs pytest on all projects."""
+def test_status_runs_pytest_and_prek(tmp_path: Path) -> None:
+    """Status runs both pytest and prek across all projects and shows a table."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -582,11 +379,11 @@ def test_bulk_test_command(tmp_path: Path) -> None:
                     "run",
                     "scaffold",
                     "init",
-                    f"bulk-test-{i}",
+                    f"status-{i}",
                     "--author",
                     "Test Author",
                     "--description",
-                    "Test test -r",
+                    "Test status",
                 ],
                 input="n\n",
                 text=True,
@@ -595,85 +392,34 @@ def test_bulk_test_command(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--no-cache", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
 
-        assert result.returncode == 0, f"Bulk test must succeed: {result.stderr}"
-        assert "Running pytest" in result.stdout, "Must indicate pytest running"
-        assert "Test Results:" in result.stdout, "Must show test results"
-        assert "Total tested: 2" in result.stdout, "Must test 2 projects"
-        assert "Results saved to" in result.stdout, "Must show where results are saved"
-
-        storage_file = Path.home() / ".scaffold" / "repo_status.jsonl"
-        assert storage_file.exists(), "Storage file must be created"
+        assert result.returncode == 0, f"Status must succeed: {result.stderr}"
+        assert "Running pytest" in result.stdout, "Must run pytest"
+        assert "Running prek" in result.stdout, "Must run prek"
+        assert "pytest:" in result.stdout, "Table must have a pytest column"
+        assert "prek:" in result.stdout, "Table must have a prek column"
+        assert "Status stored in" in result.stdout, "Must show where results are stored"
 
         from scaffold.storage import ResultStorage
 
         storage = ResultStorage()
-        results = storage.load_results(command="pytest")
-        pytest_results = [r for r in results if "bulk-test" in r.repo_name]
-        assert len(pytest_results) >= 2, "Must have results for both projects"
+        pytest_results = [
+            r for r in storage.load_results(command="pytest") if "status-" in r.repo_name
+        ]
+        prek_results = [r for r in storage.load_results(command="prek") if "status-" in r.repo_name]
+        assert len(pytest_results) >= 2, "Must have pytest results for both projects"
+        assert len(prek_results) >= 2, "Must have prek results for both projects"
 
     finally:
         os.chdir(original_cwd)
 
 
-def test_bulk_prek_command(tmp_path: Path) -> None:
-    """Test prek -r command runs prek on all projects."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        for i in range(2):
-            subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "scaffold",
-                    "init",
-                    f"bulk-prek-{i}",
-                    "--author",
-                    "Test Author",
-                    "--description",
-                    "Test prek -r",
-                ],
-                input="n\n",
-                text=True,
-                capture_output=True,
-                check=True,
-            )
-
-        result = subprocess.run(
-            ["uv", "run", "scaffold", "prek", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, f"Bulk prek must succeed: {result.stderr}"
-        assert "Running prek" in result.stdout, "Must indicate prek running"
-        assert "Prek Results:" in result.stdout, "Must show prek results"
-        assert "Total checked: 2" in result.stdout, "Must check 2 projects"
-        assert "Results saved to" in result.stdout, "Must show where results are saved"
-
-        from scaffold.storage import ResultStorage
-
-        storage = ResultStorage()
-        results = storage.load_results(command="prek")
-        prek_results = [r for r in results if "bulk-prek" in r.repo_name]
-        assert len(prek_results) >= 2, "Must have results for both projects"
-
-    finally:
-        os.chdir(original_cwd)
-
-
-def test_bulk_status_command(tmp_path: Path) -> None:
-    """Test status command displays results."""
+def test_status_detailed_shows_output(tmp_path: Path) -> None:
+    """Status --detailed prints per-project output."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -688,59 +434,7 @@ def test_bulk_status_command(tmp_path: Path) -> None:
                 "run",
                 "scaffold",
                 "init",
-                "status-test",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test status",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        subprocess.run(
-            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--command", "pytest"],
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, f"Bulk status must succeed: {result.stderr}"
-        assert "Bulk Command Results" in result.stdout, "Must show results header"
-        assert "Filtered by: pytest" in result.stdout, "Must filter by pytest"
-        assert "status-test" in result.stdout or "status_test" in result.stdout, (
-            "Must show project in results"
-        )
-
-    finally:
-        os.chdir(original_cwd)
-
-
-def test_bulk_status_detailed(tmp_path: Path) -> None:
-    """Test status detailed output."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "detailed-test",
+                "detailed",
                 "--author",
                 "Test Author",
                 "--description",
@@ -752,24 +446,106 @@ def test_bulk_status_detailed(tmp_path: Path) -> None:
             check=True,
         )
 
-        subprocess.run(
-            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--detailed"],
+            [
+                "uv",
+                "run",
+                "scaffold",
+                "status",
+                "--no-cache",
+                "--detailed",
+                "--path",
+                str(tmp_path),
+            ],
             capture_output=True,
             text=True,
         )
 
         assert result.returncode == 0, f"Detailed status must succeed: {result.stderr}"
         assert "Detailed Output:" in result.stdout, "Must show detailed output section"
-        assert "Commit:" in result.stdout or "stdout:" in result.stdout, (
-            "Must show commit or output details"
+        assert "Commit:" in result.stdout or "stdout:" in result.stdout, "Must show output details"
+
+    finally:
+        os.chdir(original_cwd)
+
+
+def test_status_reads_stored_state_without_running(tmp_path: Path) -> None:
+    """status reads remembered results and does not re-run when no run flag is given."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    original_cwd = Path.cwd()
+
+    try:
+        os.chdir(tmp_path)
+
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "scaffold",
+                "init",
+                "state-test",
+                "--author",
+                "Test",
+                "--description",
+                "Test",
+            ],
+            input="n\n",
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        subprocess.run(
+            ["uv", "run", "scaffold", "status", "--no-cache", "--path", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        result = subprocess.run(
+            ["uv", "run", "scaffold", "status", "--path", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Read status must succeed: {result.stderr}"
+        assert "Running pytest" not in result.stdout, "Read mode must not run anything"
+        assert "state-test" in result.stdout or "state_test" in result.stdout, (
+            "Must show stored repo"
         )
 
     finally:
         os.chdir(original_cwd)
+
+
+def test_config_roots_used_by_status(tmp_path: Path) -> None:
+    """Multiple configured roots (a folder and a single project) all get scanned."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    from scaffold.config import ScaffoldConfig, save_config
+
+    code = tmp_path / "code"
+    (code / "proj-a").mkdir(parents=True)
+    (code / "proj-a" / "pyproject.toml").write_text('[project]\nname = "proj-a"\n')
+    solo = tmp_path / "solo"
+    solo.mkdir()
+    (solo / "pyproject.toml").write_text('[project]\nname = "solo"\n')
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    config_file = tmp_path / "config.json"
+    save_config(ScaffoldConfig(roots=[code, solo]), config_file)
+    env = {**os.environ, "SCAFFOLD_CONFIG": str(config_file)}
+
+    result = subprocess.run(
+        ["uv", "run", "scaffold", "status"],
+        cwd=elsewhere,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"status must succeed: {result.stderr}"
+    assert str(code) in result.stdout, "status must scan the folder root"
+    assert str(solo) in result.stdout, "status must scan the individual project root"

@@ -26,19 +26,19 @@ repos:
         args: [--maxkb=1000]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
+    rev: v0.49.1
     hooks:
       - id: markdownlint
         args: [--fix, --disable, MD013, MD024, MD033, MD036, MD040, MD041, MD060, --]
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.12.1
+    rev: v4.18.1
     hooks:
       - id: commitizen
         stages: [commit-msg]
 
   - repo: https://github.com/benomahony/nasa-lsp
-    rev: v0.1.7
+    rev: v0.1.14
     hooks:
       - id: nasa-lsp
         exclude: ^tests/
@@ -66,7 +66,7 @@ repos:
         require_serial: true
       - id: vulture
         name: vulture
-        entry: uv run vulture src/{{ package_name }}/ --min-confidence 80
+        entry: uv run vulture src/{{ package_name }}/ --min-confidence 60 --ignore-decorators "@app.command,@app.callback,@field_validator" --ignore-names "cls"
         language: system
         types: [python]
         files: ^src/{{ package_name }}/
@@ -84,6 +84,20 @@ repos:
         entry: uv run cliqa analyze {{ package_name }}
         language: system
         files: ^(pyproject\.toml|src/.*\.py)$
+        pass_filenames: false
+        require_serial: true
+      - id: dddlint
+        name: dddlint
+        entry: uv run dddlint lint src/{{ package_name }}
+        language: system
+        files: ^src/{{ package_name }}/.*\.py$
+        pass_filenames: false
+        require_serial: true
+      - id: testdesiderata
+        name: testdesiderata
+        entry: uv run testdesiderata tests
+        language: system
+        files: ^tests/.*\.py$
         pass_filenames: false
         require_serial: true
       - id: deptry

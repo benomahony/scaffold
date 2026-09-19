@@ -1,32 +1,35 @@
-# Run tests across all projects
+# Check status across all projects
 
-`sc test -r` and `sc prek -r` run pytest or prek on every Python project found in a directory tree, in parallel.
+`sc status` shows the pytest/prek result for every Python project found under your configured roots (or the current directory), as a per-project pass/fail table. With no flags it reruns only the repos whose files changed since their last result and reuses the cache for the rest, so unchanged repos are instant.
 
-## Run pytest on all projects
+## Show the current status
 
-```bash
-sc test --recursive
-sc test -r --path ~/Code
-```
-
-## Run prek on all projects
-
-```bash
-sc prek --recursive
-sc prek -r --path ~/Code
-```
-
-## Force re-run (skip cache)
-
-Results are cached by file modification time. Use `--force` to bypass the cache:
-
-```bash
-sc test -r --force
-```
-
-## View results
+Reruns only the repos that changed since their last result; unchanged repos are served from the cache:
 
 ```bash
 sc status
-sc status --detailed
+sc status --path ~/Code
+```
+
+Set your project roots once so `sc status` works from anywhere (see [Configuration](../reference/cli.md#configuration)) by creating `~/.scaffold/config.json`:
+
+```json
+{ "roots": ["/home/you/Code", "/home/you/work/service"] }
+```
+
+## Regenerate the status
+
+`--no-cache` reruns pytest and prek on every repo and records the fresh results:
+
+```bash
+sc status --no-cache
+sc status --no-cache --detailed   # full output per project
+```
+
+## Rerun only what failed
+
+After fixing some red repos, recheck just those:
+
+```bash
+sc status --rerun-failed
 ```

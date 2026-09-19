@@ -9,8 +9,8 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-def test_bulk_dir_command(tmp_path: Path) -> None:
-    """Test list command lists all projects."""
+def test_status_groups_results_by_repo(tmp_path: Path) -> None:
+    """status shows pytest and prek grouped per repository."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -19,53 +19,6 @@ def test_bulk_dir_command(tmp_path: Path) -> None:
     try:
         os.chdir(tmp_path)
 
-        # Create 2 projects
-        for i in range(2):
-            subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "scaffold",
-                    "init",
-                    f"dir-test-{i}",
-                    "--author",
-                    "Test",
-                    "--description",
-                    "Test",
-                ],
-                input="n\n",
-                text=True,
-                capture_output=True,
-                check=True,
-            )
-
-        # Run list
-        result = subprocess.run(
-            ["uv", "run", "scaffold", "list", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, "Bulk dir must succeed"
-        assert "Found 2 project(s)" in result.stdout, "Must find 2 projects"
-        assert "dir-test-0" in result.stdout or "dir_test_0" in result.stdout, "Must list project 0"
-        assert "dir-test-1" in result.stdout or "dir_test_1" in result.stdout, "Must list project 1"
-
-    finally:
-        os.chdir(original_cwd)
-
-
-def test_bulk_status_grouped_by_repo(tmp_path: Path) -> None:
-    """Test status groups results by repository."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        # Create project
         subprocess.run(
             [
                 "uv",
@@ -84,24 +37,8 @@ def test_bulk_status_grouped_by_repo(tmp_path: Path) -> None:
             check=True,
         )
 
-        # Run both commands
-        subprocess.run(
-            ["uv", "run", "scaffold", "test", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        subprocess.run(
-            ["uv", "run", "scaffold", "prek", "-r", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        # Check status shows both results for one repo
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--no-cache", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -110,7 +47,6 @@ def test_bulk_status_grouped_by_repo(tmp_path: Path) -> None:
         assert "status-group-test" in result.stdout or "status_group_test" in result.stdout, (
             "Must show repo"
         )
-        # Should show both pytest and prek on same line/section
         assert "pytest" in result.stdout, "Must show pytest results"
         assert "prek" in result.stdout, "Must show prek results"
 

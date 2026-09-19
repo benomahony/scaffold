@@ -16,13 +16,21 @@ class TemplateEngine:
         assert self.env.loader is not None, "Jinja loader must be configured"
 
     def render_template(self, template_path: str, context: dict) -> str:
-        assert template_path is not None, "Template path must not be None"
-        assert isinstance(context, dict), "Context must be a dictionary"
+        assert template_path, "Template path must not be empty"
+        assert template_path.endswith(".j2"), "Template path must be a Jinja template"
 
         template = self.env.get_template(template_path)
         return template.render(**context)
 
-    def get_template_files(self, project_type: ProjectType) -> list[tuple[str, str]]:
+    def get_template_files(
+        self,
+        project_type: ProjectType,
+        *,
+        with_llms: bool = False,
+        with_mcp: bool = False,
+        with_skill: bool = False,
+        with_auto_update: bool = False,
+    ) -> list[tuple[str, str]]:
         assert project_type is not None, "Project type must not be None"
         assert project_type == ProjectType.PYTHON, "Only PYTHON type supported"
 
@@ -32,18 +40,30 @@ class TemplateEngine:
             ("base/.gitignore.j2", ".gitignore"),
             ("base/.python-version.j2", ".python-version"),
             ("base/README.md.j2", "README.md"),
-            ("base/llms.txt.j2", "llms.txt"),
+            ("base/dddlint.yaml.j2", "dddlint.yaml"),
             ("base/zensical.toml.j2", "zensical.toml"),
             ("base/.github_workflows_ci.yml.j2", ".github/workflows/ci.yml"),
             ("base/__init__.py.j2", "src/__package_name__/__init__.py"),
             ("python/cli.py.j2", "src/__package_name__/cli.py"),
             ("python/core.py.j2", "src/__package_name__/core.py"),
-            ("python/mcp_server.py.j2", "src/__package_name__/mcp_server.py"),
             ("python/test_cli.py.j2", "tests/test_cli.py"),
             ("python/test_core.py.j2", "tests/test_core.py"),
             ("python/docs_index.md.j2", "docs/index.md"),
-            ("python/SKILL.md.j2", ".skills/__package_name__/SKILL.md"),
         ]
+
+        if with_llms:
+            templates.append(("base/llms.txt.j2", "llms.txt"))
+        if with_mcp:
+            templates.append(("python/mcp_server.py.j2", "src/__package_name__/mcp_server.py"))
+        if with_skill:
+            templates.append(("python/SKILL.md.j2", ".skills/__package_name__/SKILL.md"))
+        if with_auto_update:
+            templates.append(
+                (
+                    "base/.github_workflows_scaffold-update.yml.j2",
+                    ".github/workflows/scaffold-update.yml",
+                )
+            )
 
         assert len(templates) > 0, "Must have at least one template"
         return templates
