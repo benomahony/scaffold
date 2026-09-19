@@ -15,19 +15,9 @@ Set your project roots once so `sc status` works from anywhere (see [Configurati
 { "roots": ["/home/you/Code", "/home/you/work/service"] }
 ```
 
-## Run a tool
+## Regenerate the status
 
-`--test`/`--prek` run that tool and skip repos unchanged since their last run:
-
-```bash
-sc status --test          # run pytest
-sc status --prek          # run prek
-sc status --test --prek   # run both
-```
-
-## Rerun everything (skip cache)
-
-`--no-cache` reruns both tools on every repo, ignoring the unchanged-repo skip:
+`--no-cache` reruns pytest and prek on every repo and records the fresh results:
 
 ```bash
 sc status --no-cache

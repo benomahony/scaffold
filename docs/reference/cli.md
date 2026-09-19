@@ -86,12 +86,10 @@ sc status [OPTIONS]
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `--test` | FLAG | off | Run pytest (skips repos unchanged since their last run) |
-| `--prek` | FLAG | off | Run prek (skips repos unchanged since their last run) |
-| `--no-cache` | FLAG | off | Rerun everything: both tools, every repo |
+| `--no-cache` | FLAG | off | Regenerate: rerun pytest + prek on every repo |
 | `--rerun-failed` | FLAG | off | Rerun only the repos that last failed |
 | `--detailed, -d` | FLAG | off | Show full output |
 | `--path` | PATH | config root or cwd | Repos directory to search |
 | `--max-depth` | INT | 3 | Directory depth limit |
 
-A run happens only if you pass `--test`, `--prek`, `--no-cache`, or `--rerun-failed`; otherwise `sc status` just reads the stored results (instant). `--test`/`--prek` run that tool and skip repos whose files have not changed since their last run. `--no-cache` reruns both tools on every repo, ignoring that skip (`--test --no-cache` is the same as `--no-cache`). `--rerun-failed` reruns only the `(repo, tool)` pairs whose last recorded result failed. It searches the configured roots (see [Configuration](#configuration)) or the current directory.
+With no flags, `sc status` reads the stored results (instant). `--no-cache` reruns pytest and prek on every repo and records the fresh results. `--rerun-failed` reruns only the `(repo, tool)` pairs whose last recorded result failed. It searches the configured roots (see [Configuration](#configuration)) or the current directory.

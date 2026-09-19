@@ -19,7 +19,6 @@ app = typer.Typer(
 
 Examples:
   sc status                             Show last test/prek result per repo
-  sc status --test                      Run pytest and record the results
   sc status --no-cache                  Rerun pytest + prek across every repo
   sc upgrade                            Refresh infrastructure files
   sc upgrade -r                         Upgrade every repo in a tree
@@ -242,9 +241,7 @@ def _upgrade_single(path: Path, dry_run: bool) -> None:
     )
 
 
-def _execute_bulk(
-    command: str, projects: list, storage: ResultStorage, cached_results_map: dict, force: bool
-) -> tuple[list, int, int, int]:
+def _execute_bulk(command: str, projects: list, storage: ResultStorage) -> list:
     assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
     assert projects is not None, "Projects must not be None"
 
@@ -253,48 +250,32 @@ def _execute_bulk(
     from scaffold.core import _run_command_on_repo
 
     results: list = []
-    cached_count = passed_count = failed_count = 0
     with ProcessPoolExecutor() as executor:
         futures = {
-            executor.submit(_run_command_on_repo, project, command, 600, storage, force): project
+            executor.submit(_run_command_on_repo, project, command, 600): project
             for project in projects
         }
         for future in as_completed(futures):
             try:
                 result = future.result()
-                cached = cached_results_map.get(str(result.repo_path))
-                is_cached = cached and result.timestamp == cached.timestamp and not force
-                if not is_cached:
-                    storage.save_result(result)
-                else:
-                    cached_count += 1
+                storage.save_result(result)
                 results.append(result)
-                if result.exit_code == 0:
-                    passed_count += 1
-                    status_icon = "[green]✓[/green]"
-                else:
-                    failed_count += 1
-                    status_icon = "[red]✗[/red]"
-                cached_str = " [dim](cached)[/dim]" if is_cached else ""
-                console.print(f"{status_icon} {result.repo_name}{cached_str}")
+                icon = "[green]✓[/green]" if result.exit_code == 0 else "[red]✗[/red]"
+                console.print(f"{icon} {result.repo_name}")
             except Exception as e:
                 project = futures[future]
                 console.print(f"[red]Error in {project.name}: {e}[/red]")
-    return results, cached_count, passed_count, failed_count
+    return results
 
 
-def _collect_status(projects: list, commands: list, storage: ResultStorage, force: bool) -> list:
+def _collect_status(projects: list, commands: list, storage: ResultStorage) -> list:
     assert projects, "Projects must not be empty"
     assert commands, "Commands must not be empty"
 
     results: list = []
     for command in commands:
         console.print(f"[bold]Running {command}...[/bold]")
-        cached_map = storage.get_latest_by_repo(command) if not force else {}
-        command_results, _cached, _passed, _failed = _execute_bulk(
-            command, projects, storage, cached_map, force
-        )
-        results.extend(command_results)
+        results.extend(_execute_bulk(command, projects, storage))
     return results
 
 
@@ -550,34 +531,27 @@ def _rerun_failed(projects: list, storage: ResultStorage) -> list:
         if not failed:
             continue
         console.print(f"[bold]Re-running failed {command}...[/bold]")
-        command_results, _cached, _passed, _failed = _execute_bulk(
-            command, failed, storage, {}, True
-        )
-        results.extend(command_results)
+        results.extend(_execute_bulk(command, failed, storage))
     return results
 
 
 def _status_results(
-    projects: list, storage: ResultStorage, tools: list, no_cache: bool, rerun_failed: bool
+    projects: list, storage: ResultStorage, no_cache: bool, rerun_failed: bool
 ) -> list:
     assert projects, "Projects must not be empty"
     assert storage is not None, "Storage must not be None"
 
     if no_cache:
-        return _collect_status(projects, ["pytest", "prek"], storage, True)
+        return _collect_status(projects, ["pytest", "prek"], storage)
     if rerun_failed:
         return _rerun_failed(projects, storage)
-    if tools:
-        return _collect_status(projects, tools, storage, False)
     return _read_status(projects, ["pytest", "prek"], storage)
 
 
 @app.command()
 def status(
-    test: bool = typer.Option(False, "--test", help="Run pytest (skips unchanged repos)"),
-    prek: bool = typer.Option(False, "--prek", help="Run prek (skips unchanged repos)"),
     no_cache: bool = typer.Option(
-        False, "--no-cache", help="Rerun everything: both tools, every repo"
+        False, "--no-cache", help="Regenerate: rerun pytest + prek on every repo"
     ),
     rerun_failed: bool = typer.Option(
         False, "--rerun-failed", help="Rerun only the repos that last failed"
@@ -588,11 +562,11 @@ def status(
 ) -> None:
     """Show the last pytest/prek result for each of your projects.
 
-    With no flags, reads the remembered state so you can see when tests last
-    passed without running anything. --test/--prek run that tool (skipping repos
-    unchanged since their last run); --no-cache reruns everything; --rerun-failed
-    reruns only the repos that last failed. Searches the roots in
-    ~/.scaffold/config.json (or the current directory), or --path.
+    With no flags, reads the remembered status instantly so you can see when
+    each repo last passed. --no-cache reruns pytest and prek on every repo and
+    records the fresh results; --rerun-failed reruns only the repos that last
+    failed. Searches the roots in ~/.scaffold/config.json (or the current
+    directory), or --path.
     """
     assert max_depth > 0, "Max depth must be positive"
     roots = resolve_roots(path, use_config=True)
@@ -605,9 +579,8 @@ def status(
         return
 
     storage = ResultStorage()
-    tools = [tool for tool, on in (("pytest", test), ("prek", prek)) if on]
-    running = bool(tools) or no_cache or rerun_failed
-    results = _status_results(projects, storage, tools, no_cache, rerun_failed)
+    running = no_cache or rerun_failed
+    results = _status_results(projects, storage, no_cache, rerun_failed)
 
     if not results:
         console.print(

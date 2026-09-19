@@ -418,48 +418,6 @@ def test_status_runs_pytest_and_prek(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_status_command_filters_to_one_tool(tmp_path: Path) -> None:
-    """Status with --test runs only pytest."""
-    assert tmp_path is not None, "Temp path must not be None"
-    assert tmp_path.exists(), "Temp path must exist"
-
-    original_cwd = Path.cwd()
-
-    try:
-        os.chdir(tmp_path)
-
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "init",
-                "only-pytest",
-                "--author",
-                "Test Author",
-                "--description",
-                "Test filter",
-            ],
-            input="n\n",
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--test", "--path", str(tmp_path)],
-            capture_output=True,
-            text=True,
-        )
-
-        assert result.returncode == 0, f"Status must succeed: {result.stderr}"
-        assert "Running pytest" in result.stdout, "Must run pytest"
-        assert "Running prek" not in result.stdout, "Must not run prek when scoped to --test"
-
-    finally:
-        os.chdir(original_cwd)
-
-
 def test_status_detailed_shows_output(tmp_path: Path) -> None:
     """Status --detailed prints per-project output."""
     assert tmp_path is not None, "Temp path must not be None"

@@ -17,8 +17,7 @@ uv tool install git+https://github.com/benomahony/scaffold
 
 ```bash
 sc status            # last pytest/prek result per repo
-sc status --test     # run pytest across all repos and record results
-sc status --no-cache # rerun pytest + prek across every repo
+sc status --no-cache # rerun pytest + prek across every repo and record results
 sc status --rerun-failed  # rerun only the repos that last failed
 sc upgrade           # refresh scaffold managed infrastructure files
 sc upgrade --dry-run # preview which files change first
