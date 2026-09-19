@@ -48,7 +48,7 @@ hello-world/
 Run the tests and pre-commit hooks and record the result:
 
 ```bash
-sc status --run
+sc status --test --prek
 ```
 
 Later, `sc status` shows the last recorded result for each of your projects.

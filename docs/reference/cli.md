@@ -78,7 +78,7 @@ sc adopt [OPTIONS]
 
 ## sc status
 
-Show the last pytest/prek result for each of your projects, in a per-project table. Reads the remembered state without running anything, so you can see when tests last passed.
+Show the last pytest/prek result for each of your projects, in a per-project table. With no flags it reads the remembered state without running anything, so you can see when tests last passed.
 
 ```
 sc status [OPTIONS]
@@ -86,11 +86,12 @@ sc status [OPTIONS]
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `--run` | FLAG | off | Run pytest + prek to refresh the state |
-| `--force, -f` | FLAG | off | With `--run`, ignore the cache |
-| `--command` | TEXT | both | Only `pytest` or `prek` |
+| `--test` | FLAG | off | Run pytest (skips repos unchanged since their last run) |
+| `--prek` | FLAG | off | Run prek (skips repos unchanged since their last run) |
+| `--no-cache` | FLAG | off | Rerun everything: both tools, every repo |
+| `--rerun-failed` | FLAG | off | Rerun only the repos that last failed |
 | `--detailed, -d` | FLAG | off | Show full output |
 | `--path` | PATH | config root or cwd | Repos directory to search |
 | `--max-depth` | INT | 3 | Directory depth limit |
 
-By default `sc status` reads stored results (instant). `--run` runs pytest and prek and records the results (cached by file mtime, so unchanged projects are skipped; `--force` re-runs everything). It searches the configured roots (see [Configuration](#configuration)) or the current directory.
+A run happens only if you pass `--test`, `--prek`, `--no-cache`, or `--rerun-failed`; otherwise `sc status` just reads the stored results (instant). `--test`/`--prek` run that tool and skip repos whose files have not changed since their last run. `--no-cache` reruns both tools on every repo, ignoring that skip (`--test --no-cache` is the same as `--no-cache`). `--rerun-failed` reruns only the `(repo, tool)` pairs whose last recorded result failed. It searches the configured roots (see [Configuration](#configuration)) or the current directory.

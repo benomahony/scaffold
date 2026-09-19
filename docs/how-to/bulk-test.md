@@ -1,8 +1,8 @@
 # Check status across all projects
 
-`sc status` runs pytest and prek on every Python project found under your configured roots (or the current directory), in parallel, and prints a per-project pass/fail table.
+`sc status` shows the last pytest/prek result for every Python project found under your configured roots (or the current directory), as a per-project pass/fail table. With no flags it reads the remembered state instantly; the run flags refresh it in parallel.
 
-## Run across all projects
+## Read the remembered state
 
 ```bash
 sc status
@@ -15,18 +15,29 @@ Set your project roots once so `sc status` works from anywhere (see [Configurati
 { "roots": ["/home/you/Code", "/home/you/work/service"] }
 ```
 
-## Only one tool
+## Run a tool
+
+`--test`/`--prek` run that tool and skip repos unchanged since their last run:
 
 ```bash
-sc status --command pytest
-sc status --command prek
+sc status --test          # run pytest
+sc status --prek          # run prek
+sc status --test --prek   # run both
 ```
 
-## Force re-run (skip cache)
+## Rerun everything (skip cache)
 
-Results are cached by file modification time, so unchanged projects are instant. Use `--force` to re-run everything:
+`--no-cache` reruns both tools on every repo, ignoring the unchanged-repo skip:
 
 ```bash
-sc status --force
-sc status --detailed   # full output per project
+sc status --no-cache
+sc status --no-cache --detailed   # full output per project
+```
+
+## Rerun only what failed
+
+After fixing some red repos, recheck just those:
+
+```bash
+sc status --rerun-failed
 ```

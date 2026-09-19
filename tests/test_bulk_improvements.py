@@ -38,7 +38,7 @@ def test_status_groups_results_by_repo(tmp_path: Path) -> None:
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--run", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--no-cache", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )

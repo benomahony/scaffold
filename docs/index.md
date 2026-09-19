@@ -5,7 +5,7 @@ Keep Python repos current with opinionated tooling via the `sc` CLI.
 `sc` maintains a fleet of repos: refresh infrastructure files to the latest standards, adopt repos that were not created by scaffold, and check the pytest/prek status of everything at once. It also creates new projects from scratch when you need one.
 
 ```bash
-sc status            # last test/prek result per repo (--run to refresh)
+sc status            # last test/prek result per repo (--test/--no-cache to refresh)
 sc upgrade           # refresh infrastructure files (review with git diff)
 sc adopt             # bring an existing repo up to standard
 sc init my-project   # start a new project

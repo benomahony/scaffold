@@ -19,7 +19,8 @@ app = typer.Typer(
 
 Examples:
   sc status                             Show last test/prek result per repo
-  sc status --run                       Run pytest + prek and record the results
+  sc status --test                      Run pytest and record the results
+  sc status --no-cache                  Rerun pytest + prek across every repo
   sc upgrade                            Refresh infrastructure files
   sc upgrade -r                         Upgrade every repo in a tree
   sc adopt                              Bring an existing repo up to standard
@@ -533,25 +534,67 @@ def _print_detailed_results(results: list) -> None:
         console.print()
 
 
+def _rerun_failed(projects: list, storage: ResultStorage) -> list:
+    assert projects, "Projects must not be empty"
+    assert storage is not None, "Storage must not be None"
+
+    path_by_str = {str(project): project for project in projects}
+    results: list = []
+    for command in ("pytest", "prek"):
+        latest = storage.get_latest_by_repo(command)
+        failed = [
+            path_by_str[repo]
+            for repo, result in latest.items()
+            if repo in path_by_str and result.exit_code != 0
+        ]
+        if not failed:
+            continue
+        console.print(f"[bold]Re-running failed {command}...[/bold]")
+        command_results, _cached, _passed, _failed = _execute_bulk(
+            command, failed, storage, {}, True
+        )
+        results.extend(command_results)
+    return results
+
+
+def _status_results(
+    projects: list, storage: ResultStorage, tools: list, no_cache: bool, rerun_failed: bool
+) -> list:
+    assert projects, "Projects must not be empty"
+    assert storage is not None, "Storage must not be None"
+
+    if no_cache:
+        return _collect_status(projects, ["pytest", "prek"], storage, True)
+    if rerun_failed:
+        return _rerun_failed(projects, storage)
+    if tools:
+        return _collect_status(projects, tools, storage, False)
+    return _read_status(projects, ["pytest", "prek"], storage)
+
+
 @app.command()
 def status(
-    command: str | None = typer.Option(
-        None, "--command", help="Only pytest or prek (default: both)"
+    test: bool = typer.Option(False, "--test", help="Run pytest (skips unchanged repos)"),
+    prek: bool = typer.Option(False, "--prek", help="Run prek (skips unchanged repos)"),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Rerun everything: both tools, every repo"
     ),
-    run: bool = typer.Option(False, "--run", help="Run pytest + prek to refresh state"),
-    force: bool = typer.Option(False, "--force", "-f", help="With --run, ignore the cache"),
+    rerun_failed: bool = typer.Option(
+        False, "--rerun-failed", help="Rerun only the repos that last failed"
+    ),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show full output"),
     path: Path | None = typer.Option(None, help="Search a specific dir (overrides config roots)"),
     max_depth: int = typer.Option(3, "--max-depth", help="Maximum directory depth for search"),
 ) -> None:
     """Show the last pytest/prek result for each of your projects.
 
-    Reads the remembered state so you can see when tests last passed, without
-    running anything. Use --run to refresh by running pytest and prek (cached;
-    add --force to ignore the cache). Searches the roots in ~/.scaffold/config.json
-    (or the current directory), or --path.
+    With no flags, reads the remembered state so you can see when tests last
+    passed without running anything. --test/--prek run that tool (skipping repos
+    unchanged since their last run); --no-cache reruns everything; --rerun-failed
+    reruns only the repos that last failed. Searches the roots in
+    ~/.scaffold/config.json (or the current directory), or --path.
     """
-    assert command in [None, "pytest", "prek"], "Command must be pytest, prek, or unset"
+    assert max_depth > 0, "Max depth must be positive"
     roots = resolve_roots(path, use_config=True)
     assert roots, "Must resolve at least one root"
 
@@ -561,19 +604,15 @@ def status(
         console.print(f"[yellow]No Python projects found under {roots_label}[/yellow]")
         return
 
-    commands = [command] if command else ["pytest", "prek"]
     storage = ResultStorage()
-    refresh = run or force
-    results = (
-        _collect_status(projects, commands, storage, force)
-        if refresh
-        else _read_status(projects, commands, storage)
-    )
+    tools = [tool for tool, on in (("pytest", test), ("prek", prek)) if on]
+    running = bool(tools) or no_cache or rerun_failed
+    results = _status_results(projects, storage, tools, no_cache, rerun_failed)
 
     if not results:
         console.print(
             f"[yellow]No results yet for projects under {roots_label}[/yellow]\n"
-            f"[dim]Run 'sc status --run' to record the current results[/dim]"
+            f"[dim]Run 'sc status --no-cache' to record the current results[/dim]"
         )
         return
 
@@ -581,7 +620,7 @@ def status(
     _print_results_by_repo(results)
     if detailed:
         _print_detailed_results(results)
-    if refresh:
+    if running:
         console.print(f"\n[dim]Results saved to {storage.status_file}[/dim]")
 
 

@@ -152,3 +152,44 @@ def test_force_flag_bypasses_cache(tmp_path: Path) -> None:
 
     # Should have new timestamp (cache bypassed)
     assert result.timestamp > future_time or result.stdout != "cached output", "Must bypass cache"
+
+
+def test_rerun_failed_selects_only_failed_repos(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """--rerun-failed reruns only the repos whose last result failed, ignoring the cache."""
+    assert tmp_path is not None, "Temp path must not be None"
+    assert tmp_path.exists(), "Temp path must exist"
+
+    from scaffold import cli
+
+    storage = ResultStorage(tmp_path)
+    passing = tmp_path / "good"
+    failing = tmp_path / "bad"
+    passing.mkdir()
+    failing.mkdir()
+    for repo, exit_code in ((passing, 0), (failing, 1)):
+        storage.save_result(
+            CommandResult(
+                repo_path=str(repo),
+                repo_name=repo.name,
+                command="pytest",
+                timestamp=datetime.now(),
+                exit_code=exit_code,
+                duration_seconds=0.0,
+                stdout="",
+                stderr="",
+            )
+        )
+
+    captured: dict = {}
+
+    def fake_execute_bulk(command, projects, store, cached_map, force):  # type: ignore[no-untyped-def]
+        captured["projects"] = projects
+        captured["force"] = force
+        return [], 0, 0, 0
+
+    monkeypatch.setattr(cli, "_execute_bulk", fake_execute_bulk)
+
+    cli._rerun_failed([passing, failing], storage)
+
+    assert captured["projects"] == [failing], "Must rerun only the failed repo"
+    assert captured["force"] is True, "Rerun-failed must bypass the cache"

@@ -392,7 +392,7 @@ def test_status_runs_pytest_and_prek(tmp_path: Path) -> None:
             )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--run", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--no-cache", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
@@ -419,7 +419,7 @@ def test_status_runs_pytest_and_prek(tmp_path: Path) -> None:
 
 
 def test_status_command_filters_to_one_tool(tmp_path: Path) -> None:
-    """Status with --command runs only that tool."""
+    """Status with --test runs only pytest."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -447,24 +447,14 @@ def test_status_command_filters_to_one_tool(tmp_path: Path) -> None:
         )
 
         result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "scaffold",
-                "status",
-                "--run",
-                "--command",
-                "pytest",
-                "--path",
-                str(tmp_path),
-            ],
+            ["uv", "run", "scaffold", "status", "--test", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
         )
 
         assert result.returncode == 0, f"Status must succeed: {result.stderr}"
         assert "Running pytest" in result.stdout, "Must run pytest"
-        assert "Running prek" not in result.stdout, "Must not run prek when filtered to pytest"
+        assert "Running prek" not in result.stdout, "Must not run prek when scoped to --test"
 
     finally:
         os.chdir(original_cwd)
@@ -499,7 +489,16 @@ def test_status_detailed_shows_output(tmp_path: Path) -> None:
         )
 
         result = subprocess.run(
-            ["uv", "run", "scaffold", "status", "--run", "--detailed", "--path", str(tmp_path)],
+            [
+                "uv",
+                "run",
+                "scaffold",
+                "status",
+                "--no-cache",
+                "--detailed",
+                "--path",
+                str(tmp_path),
+            ],
             capture_output=True,
             text=True,
         )
@@ -513,7 +512,7 @@ def test_status_detailed_shows_output(tmp_path: Path) -> None:
 
 
 def test_status_reads_stored_state_without_running(tmp_path: Path) -> None:
-    """status reads remembered results and does not re-run when --run is absent."""
+    """status reads remembered results and does not re-run when no run flag is given."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
@@ -541,7 +540,7 @@ def test_status_reads_stored_state_without_running(tmp_path: Path) -> None:
         )
 
         subprocess.run(
-            ["uv", "run", "scaffold", "status", "--run", "--path", str(tmp_path)],
+            ["uv", "run", "scaffold", "status", "--no-cache", "--path", str(tmp_path)],
             capture_output=True,
             text=True,
             check=True,
