@@ -164,7 +164,7 @@ def _upgrade_recursive(path: Path, dry_run: bool, max_depth: int) -> None:
     console.print(f"[dim]Max depth: {max_depth}{', Dry run mode' if dry_run else ''}[/dim]\n")
     if dry_run:
         console.print("[yellow]Dry run - no files will be modified[/yellow]\n")
-    results = bulk_maintenance(path, "upgrade", dry_run=dry_run, max_depth=max_depth)
+    results = bulk_maintenance(path, dry_run=dry_run, max_depth=max_depth)
     total = len(results)
     if total == 0:
         console.print("[yellow]No Python projects found[/yellow]")

@@ -144,40 +144,6 @@ def setup_project_environment(project_path: Path) -> None:
         )
 
 
-def check_project(project_path: Path) -> list[str]:
-    assert project_path is not None, "Project path must not be None"
-    assert project_path.exists(), "Project path must exist"
-
-    issues = []
-
-    pyproject_file = project_path / "pyproject.toml"
-    if not pyproject_file.exists():
-        issues.append("Missing pyproject.toml")
-        return issues
-
-    precommit_file = project_path / ".pre-commit-config.yaml"
-    if not precommit_file.exists():
-        issues.append("Missing .pre-commit-config.yaml")
-
-    src_dir = project_path / "src"
-    if not src_dir.exists():
-        issues.append("Missing src/ directory")
-
-    tests_dir = project_path / "tests"
-    if not tests_dir.exists():
-        issues.append("Missing tests/ directory")
-
-    git_dir = project_path / ".git"
-    if not git_dir.exists():
-        issues.append("Not a git repository (run: git init)")
-
-    precommit_hook = project_path / ".git" / "hooks" / "pre-commit"
-    if git_dir.exists() and not precommit_hook.exists():
-        issues.append("Prek hooks not installed (run: uv run prek install)")
-
-    return issues
-
-
 def _load_project_metadata(project_path: Path) -> dict[str, str]:
     assert project_path is not None, "Project path must not be None"
     assert project_path.exists(), "Project path must exist"
@@ -386,17 +352,6 @@ def plan_adopt(project_path: Path) -> list[FileChange]:
     return changes
 
 
-def adopt_project(project_path: Path, dry_run: bool = False) -> list[str]:
-    assert project_path is not None, "Project path must not be None"
-    assert project_path.exists(), "Project path must exist"
-
-    changes = plan_adopt(project_path)
-    if not dry_run:
-        apply_changes(project_path, changes)
-        ensure_prek_hooks(project_path)
-    return [change.path for change in changes]
-
-
 _SKIP_DIRS = {".venv", "venv", "node_modules", "__pycache__", "build", "dist", ".tox"}
 
 
@@ -417,11 +372,9 @@ def find_python_projects(root_path: Path, max_depth: int = 3) -> list[Path]:
     return sorted(projects)
 
 
-def bulk_maintenance(
-    root_path: Path, action: str, dry_run: bool = False, max_depth: int = 3
-) -> list[dict]:
+def bulk_maintenance(root_path: Path, dry_run: bool = False, max_depth: int = 3) -> list[dict]:
     assert root_path is not None, "Root path must not be None"
-    assert action in ["check", "upgrade"], "Action must be 'check' or 'upgrade'"
+    assert max_depth > 0, "Max depth must be positive"
 
     projects = find_python_projects(root_path, max_depth)
     results = []
@@ -430,14 +383,9 @@ def bulk_maintenance(
         result = {"project": project_path, "status": "unknown", "details": []}
 
         try:
-            if action == "check":
-                issues = check_project(project_path)
-                result["status"] = "success"
-                result["details"] = issues
-            elif action == "upgrade":
-                changes = upgrade_project(project_path, dry_run=dry_run)
-                result["status"] = "success"
-                result["details"] = changes
+            changes = upgrade_project(project_path, dry_run=dry_run)
+            result["status"] = "success"
+            result["details"] = changes
         except Exception as e:
             result["status"] = "error"
             result["error"] = str(e)

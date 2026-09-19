@@ -7,15 +7,6 @@ from pydantic import BaseModel, field_validator
 class ProjectType(str, Enum):
     PYTHON = "python"
 
-    @property
-    def description(self) -> str:
-        descriptions = {
-            ProjectType.PYTHON: "Python project (CLI + library + docs + tests)",
-        }
-        assert self in descriptions, "Project type must have a description"
-        assert descriptions[self], "Description must not be empty"
-        return descriptions[self]
-
 
 class ProjectConfig(BaseModel):
     name: str
