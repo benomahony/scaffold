@@ -1,8 +1,10 @@
 # Check status across all projects
 
-`sc status` shows the last pytest/prek result for every Python project found under your configured roots (or the current directory), as a per-project pass/fail table. With no flags it reads the remembered state instantly; the run flags refresh it in parallel.
+`sc status` shows the pytest/prek result for every Python project found under your configured roots (or the current directory), as a per-project pass/fail table. With no flags it reruns only the repos whose files changed since their last result and reuses the cache for the rest, so unchanged repos are instant.
 
-## Read the remembered state
+## Show the current status
+
+Reruns only the repos that changed since their last result; unchanged repos are served from the cache:
 
 ```bash
 sc status

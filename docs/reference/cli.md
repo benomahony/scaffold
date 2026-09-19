@@ -78,7 +78,7 @@ sc adopt [OPTIONS]
 
 ## sc status
 
-Show the last pytest/prek result for each of your projects, in a per-project table. With no flags it reads the remembered state without running anything, so you can see when tests last passed.
+Show the pytest/prek result for each of your projects, in a per-project table. With no flags it reruns only the repos whose files changed since their last result and reuses the cache for the rest, so the status is always current while unchanged repos stay instant.
 
 ```
 sc status [OPTIONS]
@@ -92,4 +92,4 @@ sc status [OPTIONS]
 | `--path` | PATH | config root or cwd | Repos directory to search |
 | `--max-depth` | INT | 3 | Directory depth limit |
 
-With no flags, `sc status` reads the stored results (instant). `--no-cache` reruns pytest and prek on every repo and records the fresh results. `--rerun-failed` reruns only the `(repo, tool)` pairs whose last recorded result failed. It searches the configured roots (see [Configuration](#configuration)) or the current directory.
+With no flags, `sc status` reruns only the repos whose files changed since their last recorded result (unchanged repos are served from the cache, so they are instant), keeping the status current cheaply. `--no-cache` reruns pytest and prek on every repo regardless. `--rerun-failed` reruns only the `(repo, tool)` pairs whose last recorded result failed. It searches the configured roots (see [Configuration](#configuration)) or the current directory.

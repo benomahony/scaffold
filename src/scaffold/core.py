@@ -414,6 +414,29 @@ def _get_git_commit(repo_path: Path) -> str | None:
     return None
 
 
+_MTIME_SKIP_DIRS = {".git", "__pycache__", ".pytest_cache", ".venv", "node_modules", ".tox"}
+
+
+def _get_latest_file_mtime(repo_path: Path) -> datetime:
+    assert repo_path is not None, "Repo path must not be None"
+    assert repo_path.exists(), "Repo path must exist"
+
+    latest_mtime = 0.0
+    for root, _dirs, files in repo_path.walk():
+        root_name = root.name
+        if root_name in _MTIME_SKIP_DIRS or root_name.startswith("."):
+            continue
+        for file in files:
+            if file.endswith((".pyc", ".pyo")):
+                continue
+            try:
+                mtime = (root / file).stat().st_mtime
+            except OSError:
+                continue
+            latest_mtime = max(latest_mtime, mtime)
+    return datetime.fromtimestamp(latest_mtime) if latest_mtime > 0 else datetime.now()
+
+
 def _get_clean_env() -> dict[str, str]:
     """Get clean environment without VIRTUAL_ENV to avoid uv conflicts."""
     assert os.environ is not None, "os.environ must be available"

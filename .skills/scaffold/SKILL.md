@@ -45,7 +45,7 @@ result = example_function("World")
 - Roots in `~/.scaffold/config.json` (`{"roots": ["...", "..."]}`) let `sc status` scan them from anywhere; `sc init` auto-tracks each new project as a root
 - `sc upgrade --dry-run` previews which files change; review applied changes with git
 - `sc adopt` onboards repos not created by scaffold, never clobbering existing files
-- `sc status` reads the last pytest/prek result per repo; `--no-cache` reruns everything and records fresh results, `--rerun-failed` reruns only the repos that last failed
+- `sc status` reruns only repos changed since their last pytest/prek result (unchanged ones served from cache); `--no-cache` reruns every repo, `--rerun-failed` reruns only the repos that last failed
 - Creates new projects with modern tooling (uv, ruff, basedpyright, pytest, prek)
 - Generates GitHub Actions CI and zensical.toml docs
 - llms.txt, MCP server, and Agent Skill are opt-in via `sc init --llms/--mcp/--skill`

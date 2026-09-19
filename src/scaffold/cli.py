@@ -268,26 +268,42 @@ def _execute_bulk(command: str, projects: list, storage: ResultStorage) -> list:
     return results
 
 
-def _collect_status(projects: list, commands: list, storage: ResultStorage) -> list:
+def _partition_by_freshness(
+    projects: list, command: str, storage: ResultStorage
+) -> tuple[list, list]:
+    assert projects, "Projects must not be empty"
+    assert command in ["pytest", "prek"], "Command must be 'pytest' or 'prek'"
+
+    from scaffold.core import _get_latest_file_mtime
+
+    latest = storage.get_latest_by_repo(command)
+    fresh: list = []
+    stale: list = []
+    for project in projects:
+        cached = latest.get(str(project))
+        if cached and cached.timestamp > _get_latest_file_mtime(project):
+            fresh.append(cached)
+        else:
+            stale.append(project)
+    return fresh, stale
+
+
+def _collect_status(
+    projects: list, commands: list, storage: ResultStorage, use_cache: bool
+) -> list:
     assert projects, "Projects must not be empty"
     assert commands, "Commands must not be empty"
 
     results: list = []
     for command in commands:
-        console.print(f"[bold]Running {command}...[/bold]")
-        results.extend(_execute_bulk(command, projects, storage))
-    return results
-
-
-def _read_status(projects: list, commands: list, storage: ResultStorage) -> list:
-    assert projects, "Projects must not be empty"
-    assert commands, "Commands must not be empty"
-
-    project_paths = {str(p) for p in projects}
-    results: list = []
-    for command in commands:
-        latest = storage.get_latest_by_repo(command)
-        results.extend(result for repo, result in latest.items() if repo in project_paths)
+        if use_cache:
+            fresh, stale = _partition_by_freshness(projects, command, storage)
+        else:
+            fresh, stale = [], projects
+        if stale:
+            console.print(f"[bold]Running {command}...[/bold]")
+            results.extend(_execute_bulk(command, stale, storage))
+        results.extend(fresh)
     return results
 
 
@@ -541,11 +557,9 @@ def _status_results(
     assert projects, "Projects must not be empty"
     assert storage is not None, "Storage must not be None"
 
-    if no_cache:
-        return _collect_status(projects, ["pytest", "prek"], storage)
     if rerun_failed:
         return _rerun_failed(projects, storage)
-    return _read_status(projects, ["pytest", "prek"], storage)
+    return _collect_status(projects, ["pytest", "prek"], storage, use_cache=not no_cache)
 
 
 @app.command()
@@ -560,13 +574,13 @@ def status(
     path: Path | None = typer.Option(None, help="Search a specific dir (overrides config roots)"),
     max_depth: int = typer.Option(3, "--max-depth", help="Maximum directory depth for search"),
 ) -> None:
-    """Show the last pytest/prek result for each of your projects.
+    """Show the pytest/prek result for each of your projects.
 
-    With no flags, reads the remembered status instantly so you can see when
-    each repo last passed. --no-cache reruns pytest and prek on every repo and
-    records the fresh results; --rerun-failed reruns only the repos that last
-    failed. Searches the roots in ~/.scaffold/config.json (or the current
-    directory), or --path.
+    With no flags, reruns only the repos whose files changed since their last
+    recorded result and reuses the cache for the rest, so the status is always
+    current but unchanged repos stay instant. --no-cache reruns every repo
+    regardless; --rerun-failed reruns only the repos that last failed. Searches
+    the roots in ~/.scaffold/config.json (or the current directory), or --path.
     """
     assert max_depth > 0, "Max depth must be positive"
     roots = resolve_roots(path, use_config=True)
@@ -579,7 +593,6 @@ def status(
         return
 
     storage = ResultStorage()
-    running = no_cache or rerun_failed
     results = _status_results(projects, storage, no_cache, rerun_failed)
 
     if not results:
@@ -593,8 +606,7 @@ def status(
     _print_results_by_repo(results)
     if detailed:
         _print_detailed_results(results)
-    if running:
-        console.print(f"\n[dim]Results saved to {storage.status_file}[/dim]")
+    console.print(f"\n[dim]Status stored in {storage.status_file}[/dim]")
 
 
 if __name__ == "__main__":
