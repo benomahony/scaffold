@@ -66,7 +66,7 @@ repos:
         require_serial: true
       - id: vulture
         name: vulture
-        entry: uv run vulture src/{{ package_name }}/ --min-confidence 80
+        entry: uv run vulture src/{{ package_name }}/ --min-confidence 60 --ignore-decorators "@app.command,@app.callback,@field_validator" --ignore-names "cls"
         language: system
         types: [python]
         files: ^src/{{ package_name }}/

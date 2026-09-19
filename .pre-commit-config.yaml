@@ -78,7 +78,7 @@ repos:
         require_serial: true
       - id: vulture
         name: vulture
-        entry: uv run --frozen vulture src/scaffold/ --exclude "**/models.py" --min-confidence 80
+        entry: uv run --frozen vulture src/scaffold/ --min-confidence 60 --ignore-decorators "@app.command,@app.callback,@field_validator" --ignore-names "cls,duration_seconds"
         language: system
         types: [python]
         pass_filenames: false
