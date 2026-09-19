@@ -2,19 +2,26 @@
 
 ## Configuration
 
-Set a default projects root so `sc status` (and `sc upgrade -r`) search it from
-anywhere, without cd-ing into your code directory. There is no config command;
-create `~/.scaffold/config.json`:
+Set one or more default project roots so `sc status` (and `sc upgrade -r`) search
+them from anywhere, without cd-ing into your code directory. There is no config
+command; create `~/.scaffold/config.json`. Each root can be a folder full of
+projects, or an individual project folder:
 
 ```json
-{ "root": "/home/you/code" }
+{
+  "roots": [
+    "/home/you/code",
+    "/home/you/work/important-service",
+    "/home/you/experiments/spike"
+  ]
+}
 ```
 
 ```bash
-sc status            # now scans /home/you/code from anywhere
+sc status            # scans every configured root from anywhere
 ```
 
-Single-project commands (`upgrade`, `adopt` without `-r`) still default to the current directory, and an explicit `--path` always wins. Override the config file location with the `SCAFFOLD_CONFIG` environment variable.
+Missing roots are skipped. An explicit `--path` overrides the configured roots, and `adopt` (and single-project `upgrade`) still default to the current directory. Override the config file location with the `SCAFFOLD_CONFIG` environment variable.
 
 ## sc init
 
@@ -84,4 +91,4 @@ sc status [OPTIONS]
 | `--path` | PATH | config root or cwd | Repos directory to search |
 | `--max-depth` | INT | 3 | Directory depth limit |
 
-By default `sc status` reads stored results (instant). `--run` runs pytest and prek and records the results (cached by file mtime, so unchanged projects are skipped; `--force` re-runs everything). The search root defaults to the configured root (see [Configuration](#configuration)) or the current directory.
+By default `sc status` reads stored results (instant). `--run` runs pytest and prek and records the results (cached by file mtime, so unchanged projects are skipped; `--force` re-runs everything). It searches the configured roots (see [Configuration](#configuration)) or the current directory.

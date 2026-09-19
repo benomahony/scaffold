@@ -563,20 +563,23 @@ def test_status_reads_stored_state_without_running(tmp_path: Path) -> None:
         os.chdir(original_cwd)
 
 
-def test_config_root_used_by_status(tmp_path: Path) -> None:
-    """A configured root file lets status target an unrelated directory."""
+def test_config_roots_used_by_status(tmp_path: Path) -> None:
+    """Multiple configured roots (a folder and a single project) all get scanned."""
     assert tmp_path is not None, "Temp path must not be None"
     assert tmp_path.exists(), "Temp path must exist"
 
     from scaffold.config import ScaffoldConfig, save_config
 
-    projects_root = tmp_path / "code"
-    (projects_root / "proj").mkdir(parents=True)
-    (projects_root / "proj" / "pyproject.toml").write_text('[project]\nname = "proj"\n')
+    code = tmp_path / "code"
+    (code / "proj-a").mkdir(parents=True)
+    (code / "proj-a" / "pyproject.toml").write_text('[project]\nname = "proj-a"\n')
+    solo = tmp_path / "solo"
+    solo.mkdir()
+    (solo / "pyproject.toml").write_text('[project]\nname = "solo"\n')
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     config_file = tmp_path / "config.json"
-    save_config(ScaffoldConfig(root=projects_root), config_file)
+    save_config(ScaffoldConfig(roots=[code, solo]), config_file)
     env = {**os.environ, "SCAFFOLD_CONFIG": str(config_file)}
 
     result = subprocess.run(
@@ -587,4 +590,5 @@ def test_config_root_used_by_status(tmp_path: Path) -> None:
         text=True,
     )
     assert result.returncode == 0, f"status must succeed: {result.stderr}"
-    assert str(projects_root) in result.stdout, "status must use the configured root"
+    assert str(code) in result.stdout, "status must scan the folder root"
+    assert str(solo) in result.stdout, "status must scan the individual project root"

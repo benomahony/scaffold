@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from scaffold.config import resolve_root
+from scaffold.config import resolve_roots
 from scaffold.core import create_project, preview_project
 from scaffold.models import ProjectConfig, ProjectType
 from scaffold.storage import ResultStorage
@@ -307,6 +307,18 @@ def _read_status(projects: list, commands: list, storage: ResultStorage) -> list
     return results
 
 
+def _find_projects(roots: list, max_depth: int) -> list:
+    assert roots, "Roots must not be empty"
+    assert max_depth > 0, "Max depth must be positive"
+
+    from scaffold.core import find_python_projects
+
+    found: set = set()
+    for root in roots:
+        found.update(find_python_projects(root, max_depth))
+    return sorted(found)
+
+
 @app.callback()
 def main(
     _version: bool = typer.Option(
@@ -372,7 +384,7 @@ def init(
 
 @app.command()
 def upgrade(
-    path: Path | None = typer.Option(None, help="Project path (cwd, or config root with -r)"),
+    path: Path | None = typer.Option(None, help="Project path (cwd, or config roots with -r)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="Upgrade all projects in directory tree"
@@ -386,14 +398,15 @@ def upgrade(
     Refreshes scaffold-managed files in place. Use --dry-run to preview which
     files change first; review the applied changes with 'git diff'.
     """
-    path = resolve_root(path, use_config=recursive)
-    assert path is not None, "Path must not be None"
-    assert path.exists(), f"Path {path} does not exist"
+    assert max_depth > 0, "Max depth must be positive"
+    roots = resolve_roots(path, use_config=recursive)
+    assert roots, "Must resolve at least one root"
 
     if recursive:
-        _upgrade_recursive(path, dry_run, max_depth)
+        for root in roots:
+            _upgrade_recursive(root, dry_run, max_depth)
     else:
-        _upgrade_single(path, dry_run)
+        _upgrade_single(roots[0], dry_run)
 
 
 @app.command()
@@ -526,25 +539,24 @@ def status(
     run: bool = typer.Option(False, "--run", help="Run pytest + prek to refresh state"),
     force: bool = typer.Option(False, "--force", "-f", help="With --run, ignore the cache"),
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show full output"),
-    path: Path | None = typer.Option(None, help="Repos dir (config root or cwd)"),
+    path: Path | None = typer.Option(None, help="Search a specific dir (overrides config roots)"),
     max_depth: int = typer.Option(3, "--max-depth", help="Maximum directory depth for search"),
 ) -> None:
     """Show the last pytest/prek result for each of your projects.
 
     Reads the remembered state so you can see when tests last passed, without
     running anything. Use --run to refresh by running pytest and prek (cached;
-    add --force to ignore the cache). Searches the root in ~/.scaffold/config.json
-    or the current directory.
+    add --force to ignore the cache). Searches the roots in ~/.scaffold/config.json
+    (or the current directory), or --path.
     """
     assert command in [None, "pytest", "prek"], "Command must be pytest, prek, or unset"
-    path = resolve_root(path, use_config=True)
-    assert path.exists(), "Path must exist"
+    roots = resolve_roots(path, use_config=True)
+    assert roots, "Must resolve at least one root"
 
-    from scaffold.core import find_python_projects
-
-    projects = find_python_projects(path, max_depth)
+    projects = _find_projects(roots, max_depth)
+    roots_label = ", ".join(str(root) for root in roots)
     if not projects:
-        console.print("[yellow]No Python projects found[/yellow]")
+        console.print(f"[yellow]No Python projects found under {roots_label}[/yellow]")
         return
 
     commands = [command] if command else ["pytest", "prek"]
@@ -558,12 +570,12 @@ def status(
 
     if not results:
         console.print(
-            f"[yellow]No results yet for projects in {path}[/yellow]\n"
+            f"[yellow]No results yet for projects under {roots_label}[/yellow]\n"
             f"[dim]Run 'sc status --run' to record the current results[/dim]"
         )
         return
 
-    console.print(f"\n[bold]Status[/bold] - {path}\n")
+    console.print(f"\n[bold]Status[/bold] - {roots_label}\n")
     _print_results_by_repo(results)
     if detailed:
         _print_detailed_results(results)

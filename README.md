@@ -24,10 +24,11 @@ sc upgrade -r        # upgrade every repo in a tree
 sc adopt             # bring a repo up to standard without clobbering files
 ```
 
-Set a default projects root so `sc status` and `sc upgrade -r` work from anywhere
+Set one or more project roots so `sc status` and `sc upgrade -r` work from anywhere
 without cd-ing into your code directory. There is no config command; create
-`~/.scaffold/config.json` with `{ "root": "/home/you/code" }`. Single-project
-commands still default to the current directory, and `--path` always wins.
+`~/.scaffold/config.json` with `{ "roots": ["/home/you/code", "/home/you/work/svc"] }`.
+Each root can be a folder of projects or an individual project. Missing roots are
+skipped; `--path` always wins.
 
 `sc upgrade` rewrites the files scaffold owns (`.pre-commit-config.yaml`,
 `zensical.toml`, CI workflow). Use `--dry-run` to preview which files change;

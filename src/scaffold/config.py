@@ -8,7 +8,7 @@ _CONFIG_FILE = Path(os.environ.get("SCAFFOLD_CONFIG", _DEFAULT_CONFIG))
 
 
 class ScaffoldConfig(BaseModel):
-    root: Path | None = None
+    roots: list[Path] = []
 
 
 def load_config(config_file: Path | None = None) -> ScaffoldConfig:
@@ -30,15 +30,15 @@ def save_config(config: ScaffoldConfig, config_file: Path | None = None) -> None
     target.write_text(config.model_dump_json(indent=2))
 
 
-def resolve_root(path: Path | None, use_config: bool, config_file: Path | None = None) -> Path:
+def resolve_roots(
+    path: Path | None, use_config: bool, config_file: Path | None = None
+) -> list[Path]:
     assert use_config in (True, False), "use_config must be a boolean"
 
     if path is not None:
         assert path.exists(), f"Path {path} does not exist"
-        return path
+        return [path]
 
-    root = load_config(config_file).root if use_config else None
-    if root is not None:
-        assert root.exists(), f"Configured root {root} does not exist"
-        return root
-    return Path.cwd()
+    configured = load_config(config_file).roots if use_config else []
+    existing = [root for root in configured if root.exists()]
+    return existing or [Path.cwd()]

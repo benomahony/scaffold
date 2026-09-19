@@ -1,6 +1,6 @@
 # Check status across all projects
 
-`sc status` runs pytest and prek on every Python project found under your root (the configured root, or the current directory), in parallel, and prints a per-project pass/fail table.
+`sc status` runs pytest and prek on every Python project found under your configured roots (or the current directory), in parallel, and prints a per-project pass/fail table.
 
 ## Run across all projects
 
@@ -9,10 +9,10 @@ sc status
 sc status --path ~/Code
 ```
 
-Set a default root once so `sc status` works from anywhere (see [Configuration](../reference/cli.md#configuration)) by creating `~/.scaffold/config.json`:
+Set your project roots once so `sc status` works from anywhere (see [Configuration](../reference/cli.md#configuration)) by creating `~/.scaffold/config.json`:
 
 ```json
-{ "root": "/home/you/Code" }
+{ "roots": ["/home/you/Code", "/home/you/work/service"] }
 ```
 
 ## Only one tool
