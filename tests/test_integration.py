@@ -402,7 +402,7 @@ def test_status_runs_pytest_and_prek(tmp_path: Path) -> None:
         assert "Running prek" in result.stdout, "Must run prek"
         assert "pytest:" in result.stdout, "Table must have a pytest column"
         assert "prek:" in result.stdout, "Table must have a prek column"
-        assert "Results saved to" in result.stdout, "Must show where results are saved"
+        assert "Status stored in" in result.stdout, "Must show where results are stored"
 
         from scaffold.storage import ResultStorage
 
